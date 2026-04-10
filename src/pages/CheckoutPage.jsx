@@ -1,0 +1,352 @@
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { MessageCircle, ArrowLeft, ShoppingBag, Tag, X, User, Phone, Minus, Plus, Trash2 } from 'lucide-react';
+import useCartStore from '../stores/cartStore';
+import { supabase } from '../lib/supabase';
+import { formatPrice, generateOrderMessage, generateWhatsAppUrl } from '../lib/constants';
+import useLanguageStore from '../stores/languageStore';
+import { FlagLB, FlagTR } from '../components/UI/FlagIcons';
+
+export default function CheckoutPage() {
+  const {
+    items, discount, discountError, discountLoading,
+    applyDiscount, removeDiscount, removeItem, updateQuantity,
+    getSubtotal, getDiscountAmount, getTotal, clearCart
+  } = useCartStore();
+  const { t, isRTL } = useLanguageStore();
+
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [discountCode, setDiscountCode] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
+  const navigate = useNavigate();
+
+  const subtotal = getSubtotal();
+  const discountAmt = getDiscountAmount();
+  const total = getTotal();
+
+  const handleApplyDiscount = async () => {
+    if (!discountCode.trim()) return;
+    await applyDiscount(discountCode);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!name.trim() || !phone.trim()) {
+      setError('Please fill in your name and phone number.');
+      return;
+    }
+    if (items.length === 0) {
+      setError('Your cart is empty.');
+      return;
+    }
+
+    setSubmitting(true);
+    setError(null);
+
+    try {
+      // Create the order in Supabase
+      const { data: order, error: orderError } = await supabase
+        .from('orders')
+        .insert({
+          customer_name: name.trim(),
+          customer_phone: phone.trim(),
+          status: 'pending',
+          discount_code_id: discount?.id || null,
+          total_amount: total,
+        })
+        .select()
+        .single();
+
+      if (orderError) throw orderError;
+
+      // Create order items
+      const orderItems = items.map((item) => ({
+        order_id: order.id,
+        product_variant_id: item.variantId,
+        quantity: item.quantity,
+        unit_price: item.price,
+        price_at_purchase: item.price,
+        cost_price_at_purchase: item.costPrice || 0,
+        coupon_discount_amount: discount
+          ? (item.price * item.quantity * discount.value) / 100 / items.length
+          : 0,
+      }));
+
+      const { error: itemsError } = await supabase
+        .from('order_items')
+        .insert(orderItems);
+
+      if (itemsError) throw itemsError;
+
+      // Update stock for each variant
+      for (const item of items) {
+        try {
+          // Attempt using standard RPC first
+          const { error: rpcError } = await supabase.rpc('decrement_stock', {
+            variant_id: item.variantId,
+            qty: item.quantity
+          });
+          
+          if (rpcError) throw rpcError;
+          
+        } catch (stockError) {
+          console.warn('Stock decrement RPC failed, attempting manual fallback:', stockError);
+          
+          // Fallback: manually fetch and update (Note: this is not atomic, RPC is better)
+          const { data: variant, error: fetchError } = await supabase
+            .from('product_variants')
+            .select('stock_quantity')
+            .eq('id', item.variantId)
+            .single();
+
+          if (!fetchError && variant) {
+            await supabase
+              .from('product_variants')
+              .update({
+                stock_quantity: Math.max(0, variant.stock_quantity - item.quantity)
+              })
+              .eq('id', item.variantId);
+          }
+        }
+      }
+
+      // Increment discount usage
+      if (discount) {
+        try {
+          const { data: currentDiscount } = await supabase
+            .from('discount_codes')
+            .select('times_used')
+            .eq('id', discount.id)
+            .single();
+            
+          await supabase
+            .from('discount_codes')
+            .update({ times_used: (currentDiscount?.times_used || 0) + 1 })
+            .eq('id', discount.id);
+        } catch (discountErr) {
+          console.warn('Could not update discount usage:', discountErr);
+        }
+      }
+
+      // Generate WhatsApp message
+      const message = generateOrderMessage(items, name, phone, total, discount);
+      const whatsappUrl = generateWhatsAppUrl(message);
+
+      // Clear cart and navigate
+      clearCart();
+
+      // Open WhatsApp
+      window.open(whatsappUrl, '_blank');
+
+    } catch (err) {
+      console.error('Order error:', err);
+      setError('Something went wrong. Please try again or contact us on WhatsApp.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (items.length === 0) {
+    return (
+      <div className="checkout-page">
+      <div className="container">
+        <div className="empty-state">
+          <ShoppingBag size={64} />
+          <h3>{t('checkout.emptyCart')}</h3>
+          <Link to="/shop" className="btn btn-outline btn-lg" style={{ marginTop: '16px' }}>
+            <ArrowLeft size={16} /> {isRTL() ? 'متابعة التسوق' : 'Continue Shopping'}
+          </Link>
+        </div>
+      </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="checkout-page">
+      <div className="container">
+        <h1 className="section-title">{t('checkout.title')}</h1>
+
+        <div className="checkout-grid">
+          {/* Form */}
+          <div>
+            <div className="checkout-section">
+              <h2>{t('checkout.yourInfo')}</h2>
+              <form className="checkout-form" onSubmit={handleSubmit}>
+                <div className="input-group">
+                  <label className="input-label">
+                    <User size={14} style={{ display: 'inline', [isRTL() ? 'marginLeft' : 'marginRight']: '6px' }} />
+                    {t('checkout.fullName')}
+                  </label>
+                  <input
+                    className="input-field"
+                    placeholder={t('checkout.namePlaceholder')}
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="input-group">
+                  <label className="input-label">
+                    <Phone size={14} style={{ display: 'inline', [isRTL() ? 'marginLeft' : 'marginRight']: '6px' }} />
+                    {t('checkout.phone')}
+                  </label>
+                  <input
+                    className="input-field"
+                    placeholder={t('checkout.phonePlaceholder')}
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    required
+                    type="tel"
+                  />
+                </div>
+
+                {/* Discount */}
+                {!discount ? (
+                  <div className="input-group">
+                    <label className="input-label">
+                      <Tag size={14} style={{ display: 'inline', [isRTL() ? 'marginLeft' : 'marginRight']: '6px' }} />
+                      {t('checkout.discountCode')}
+                    </label>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <input
+                        className="input-field"
+                        placeholder={t('checkout.codePlaceholder')}
+                        value={discountCode}
+                        onChange={(e) => setDiscountCode(e.target.value)}
+                        style={{ flex: 1, textTransform: 'uppercase' }}
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-outline"
+                        onClick={handleApplyDiscount}
+                        disabled={discountLoading}
+                      >
+                        {discountLoading ? '...' : t('checkout.apply')}
+                      </button>
+                    </div>
+                    {discountError && <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-error)' }}>{discountError}</span>}
+                  </div>
+                ) : (
+                  <div className="cart-discount-success">
+                    <span><Tag size={14} /> {discount.code} (-{discount.value}%)</span>
+                    <button type="button" onClick={removeDiscount} style={{ color: 'var(--color-text-muted)' }}>
+                      <X size={16} />
+                    </button>
+                  </div>
+                )}
+
+                {error && (
+                  <div style={{
+                    padding: '12px 16px', background: 'rgba(220,53,69,0.08)',
+                    borderRadius: 'var(--radius-sm)', color: 'var(--color-error)',
+                    fontSize: 'var(--text-sm)'
+                  }}>
+                    {error}
+                  </div>
+                )}
+
+                <label className="checkout-delivery-note" style={{
+                  padding: '12px',
+                  backgroundColor: 'rgba(0,0,0,0.03)',
+                  border: '1px dashed var(--color-border)',
+                  borderRadius: 'var(--radius-md)',
+                  marginBottom: '16px',
+                  fontSize: '0.85rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  cursor: 'pointer'
+                }}>
+                  <input type="checkbox" required style={{ width: '16px', height: '16px', accentColor: 'var(--color-primary)' }} />
+                  <span>
+                    {isRTL() ? (
+                      <>أقر وأوافق على أن الطلب يستغرق من 10 إلى 12 يوماً للتوصيل (شحن ممتاز <FlagTR size={16} /> إلى <FlagLB size={16} />).</>
+                    ) : (
+                      <>I acknowledge and agree that the order takes 10 to 12 days to deliver (Premium Shipping <FlagTR size={16} /> to <FlagLB size={16} />).</>
+                    )}
+                  </span>
+                </label>
+
+                <button
+                  type="submit"
+                  className="btn btn-whatsapp btn-full btn-lg"
+                  disabled={submitting}
+                >
+                  <MessageCircle size={20} />
+                  {submitting ? t('common.loading') : t('checkout.confirmButton')}
+                </button>
+
+                <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', textAlign: 'center' }}>
+                  {t('checkout.whatsappNotice')}
+                </p>
+              </form>
+            </div>
+          </div>
+
+          {/* Order Summary */}
+          <div className="checkout-section checkout-order-summary">
+            <h2>{t('checkout.orderSummary')}</h2>
+
+            {items.map((item) => (
+              <div className="checkout-item" key={item.variantId}>
+                <div className="checkout-item-image">
+                  {item.image ? (
+                    <img src={item.image} alt={item.productName} />
+                  ) : (
+                    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>💎</div>
+                  )}
+                </div>
+                <div className="checkout-item-details">
+                  <div className="checkout-item-name">{item.productName}</div>
+                  <div className="checkout-item-variant">
+                    {item.color && `${item.color}`}
+                    {item.color && item.size && ' · '}
+                    {item.size && `${item.size}`}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                    <button className="qty-btn" onClick={() => updateQuantity(item.variantId, item.quantity - 1)}>
+                      <Minus size={12} />
+                    </button>
+                    <span style={{ fontWeight: 600, fontSize: 'var(--text-sm)' }}>{item.quantity}</span>
+                    <button className="qty-btn" onClick={() => updateQuantity(item.variantId, item.quantity + 1)}>
+                      <Plus size={12} />
+                    </button>
+                    <button onClick={() => removeItem(item.variantId)} style={{ marginLeft: 'auto', color: 'var(--color-text-muted)', padding: '4px' }}>
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+                <div className="checkout-item-price">{formatPrice(item.price * item.quantity)}</div>
+              </div>
+            ))}
+
+            <div className="cart-summary" style={{ marginTop: 'var(--space-lg)' }}>
+              <div className="cart-summary-row">
+                <span>{t('cart.subtotal')}</span>
+                <span>{formatPrice(subtotal)}</span>
+              </div>
+              {discount && (
+                <div className="cart-summary-row discount">
+                  <span>{isRTL() ? `الخصم (${discount.value}%)` : `Discount (${discount.value}%)`}</span>
+                  <span>-{formatPrice(discountAmt)}</span>
+                </div>
+              )}
+              <div className="cart-summary-row total">
+                <span>{t('cart.total')}</span>
+                <span>{formatPrice(total)}</span>
+              </div>
+              <div className="cart-summary-row total-lbp">
+                <span></span>
+                <span>{formatPrice(total, 'LBP')}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
