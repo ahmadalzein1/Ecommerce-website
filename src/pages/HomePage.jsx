@@ -21,7 +21,24 @@ export default function HomePage() {
   const { categories } = useCategories();
   const { t, isRTL, getLocalizedField } = useLanguageStore();
 
-  const categoryEmojis = ['👗', '🧕', '👘', '💃', '🎀', '✨', '🌸', '💎'];
+  const getCategoryBackground = (category) => {
+    const nameStr = (category.name_en || category.name_ar || '').toLowerCase();
+    
+    // Girls Fashion
+    if (nameStr.includes('girl') || nameStr.includes('بنات')) {
+      return 'https://images.unsplash.com/photo-1518831959646-742c3a14ebf7?auto=format&fit=crop&q=80&w=600';
+    }
+    // Princess Dresses
+    if (nameStr.includes('princess') || nameStr.includes('أمير')) {
+      return 'https://images.unsplash.com/photo-1515488042188-f027effcc715?auto=format&fit=crop&q=80&w=600';
+    }
+    // Abayas & Kaftans
+    if (nameStr.includes('abaya') || nameStr.includes('عباي') || nameStr.includes('قفطان')) {
+      return 'https://images.unsplash.com/photo-1621570169561-0f2c418c991e?auto=format&fit=crop&q=80&w=600';
+    }
+    // Women / Default luxury style
+    return 'https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&q=80&w=600';
+  };
 
   return (
     <main>
@@ -68,9 +85,14 @@ export default function HomePage() {
                   className="category-card"
                   id={`category-${cat.id}`}
                 >
-                  <div className="category-card-bg">
-                    {categoryEmojis[i % categoryEmojis.length]}
-                  </div>
+                  <div 
+                    className="category-card-bg"
+                    style={{ 
+                      backgroundImage: `url(${getCategoryBackground(cat)})`,
+                      backgroundSize: 'cover',
+                      backgroundPosition: 'center'
+                    }}
+                  />
                   <div className="category-card-name">
                     {getLocalizedField(cat, 'name')}
                     {cat.children?.length > 0 && (
