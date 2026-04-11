@@ -13,7 +13,7 @@ export default function ShopPage() {
   const [searchParams] = useSearchParams();
   const [page, setPage] = useState(0);
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
-  const { t, isRTL } = useLanguageStore();
+  const { t, isRTL, getLocalizedField } = useLanguageStore();
 
   const {
     categoryId, colorId, searchQuery, sortBy,
@@ -83,7 +83,7 @@ export default function ShopPage() {
               onClick={() => handleCategoryClick(cat.id)}
               style={{ [isRTL() ? 'paddingRight' : 'paddingLeft']: `${16 + cat.depth * 16}px` }}
             >
-              {cat.name}
+              {getLocalizedField(cat, 'name')}
             </div>
           ))}
         </div>
@@ -97,7 +97,7 @@ export default function ShopPage() {
               key={color.id}
               className={`color-swatch color-swatch-lg ${colorId === color.id ? 'active' : ''}`}
               style={{ backgroundColor: color.hex_code }}
-              title={color.name}
+              title={getLocalizedField(color, 'name')}
               onClick={() => handleColorClick(color.id)}
             />
           ))}

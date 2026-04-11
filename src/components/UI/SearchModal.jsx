@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Search, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { formatPrice } from '../../lib/constants';
+import useLanguageStore from '../../stores/languageStore';
 
 export default function SearchModal({ onClose }) {
   const [query, setQuery] = useState('');
@@ -11,6 +12,7 @@ export default function SearchModal({ onClose }) {
   const inputRef = useRef();
   const navigate = useNavigate();
   const debounceRef = useRef();
+  const { t, isRTL, getLocalizedField } = useLanguageStore();
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -28,11 +30,11 @@ export default function SearchModal({ onClose }) {
     const { data } = await supabase
       .from('products')
       .select(`
-        id, name, base_image_url,
-        product_colors(id, image_url, colors(name, hex_code)),
+        id, name_en, name_ar, base_image_url,
+        product_colors(id, image_url, colors(name_en, name_ar, hex_code)),
         product_variants(id, base_price)
       `)
-      .ilike('name', `%${q.trim()}%`)
+      .or(`name_en.ilike.%${q.trim()}%,name_ar.ilike.%${q.trim()}%`)
       .limit(8);
 
     setResults(data || []);
@@ -64,7 +66,7 @@ export default function SearchModal({ onClose }) {
           <input
             ref={inputRef}
             type="text"
-            placeholder="ابحث عن المنتجات..."
+            placeholder={t('nav.searchPlaceholder')}
             value={query}
             onChange={handleInput}
           />
@@ -82,7 +84,7 @@ export default function SearchModal({ onClose }) {
 
           {!loading && query && results.length === 0 && (
             <div className="search-no-results">
-              لم يتم العثور على منتجات لـ "{query}"
+              {isRTL() ? `لم يتم العثور على منتجات لـ "${query}"` : `No products found for "${query}"`}
             </div>
           )}
 
@@ -99,13 +101,13 @@ export default function SearchModal({ onClose }) {
               >
                 <div className="search-result-image">
                   {image ? (
-                    <img src={image} alt={product.name} />
+                    <img src={image} alt={getLocalizedField(product, 'name')} />
                   ) : (
                     <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>💎</div>
                   )}
                 </div>
                 <div>
-                  <div className="search-result-name">{product.name}</div>
+                  <div className="search-result-name">{getLocalizedField(product, 'name')}</div>
                   <div className="search-result-price">{formatPrice(minPrice)}</div>
                 </div>
               </div>
@@ -114,7 +116,7 @@ export default function SearchModal({ onClose }) {
 
           {!query && (
             <div className="search-no-results" style={{ opacity: 0.5 }}>
-              ابدأ الكتابة للبحث...
+              {isRTL() ? 'ابدأ الكتابة للبحث...' : 'Start typing to search...'}
             </div>
           )}
         </div>

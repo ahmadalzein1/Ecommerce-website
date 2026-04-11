@@ -14,11 +14,12 @@ import { useCategories } from '../hooks/useCategories';
 import ProductCard from '../components/UI/ProductCard';
 import SkeletonLoader from '../components/UI/SkeletonLoader';
 import { INSTAGRAM_URL, DELIVERY_INFO, WHATSAPP_NUMBER } from '../lib/constants';
+import { FlagLB } from '../components/UI/FlagIcons';
 
 export default function HomePage() {
   const { products, loading } = useFeaturedProducts();
   const { categories } = useCategories();
-  const { t, isRTL } = useLanguageStore();
+  const { t, isRTL, getLocalizedField } = useLanguageStore();
 
   const categoryEmojis = ['👗', '🧕', '👘', '💃', '🎀', '✨', '🌸', '💎'];
 
@@ -38,9 +39,9 @@ export default function HomePage() {
               <>Elegance in<br />Every <span>Detail</span></>
             )}
           </h1>
-          <p className="hero-subtitle">
-            {t('home.heroSubtitle')}<br />
-            {DELIVERY_INFO} {isRTL() ? '🇱🇧' : '🇱🇧'}
+          <p className="hero-subtitle" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: '8px' }}>
+            {t('home.heroSubtitle')}
+            <FlagLB size={20} style={{ display: 'inline', verticalAlign: 'middle' }} />
           </p>
           <div className="hero-actions">
             <Link to="/shop" className="btn btn-gold btn-lg">
@@ -71,7 +72,7 @@ export default function HomePage() {
                     {categoryEmojis[i % categoryEmojis.length]}
                   </div>
                   <div className="category-card-name">
-                    {cat.name}
+                    {getLocalizedField(cat, 'name')}
                     {cat.children?.length > 0 && (
                       <div className="category-card-count">
                         {cat.children.length} {isRTL() ? 'فئات فرعية' : 'Subcategories'}
@@ -132,6 +133,15 @@ export default function HomePage() {
               <div>
                 <div className="trust-title">{t('home.trust.quality')}</div>
                 <div className="trust-desc">{t('home.trust.qualityDesc')}</div>
+              </div>
+            </div>
+            <div className="trust-item">
+              <div className="trust-icon">
+                <MessageCircle size={26} />
+              </div>
+              <div>
+                <div className="trust-title">{t('home.trust.support')}</div>
+                <div className="trust-desc">{t('home.trust.supportDesc')}</div>
               </div>
             </div>
 

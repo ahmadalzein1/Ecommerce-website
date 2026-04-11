@@ -35,48 +35,37 @@ export const formatPrice = (amount, currency = 'USD') => {
 
 export const generateWhatsAppUrl = (message) => {
   const encoded = encodeURIComponent(message);
-  return `https://wa.me/${WHATSAPP_NUMBER}?text=${encoded}`;
+  return `https://api.whatsapp.com/send?phone=${WHATSAPP_NUMBER}&text=${encoded}`;
 };
 
-export const generateOrderMessage = (items, customerName, customerPhone, total, discount = null) => {
-  // Using fromCodePoint to be 100% safe across all OS and build systems
-  const emoji = {
-    shop: String.fromCodePoint(0x1F6CD, 0xFE0F),      // 🛍️
-    user: String.fromCodePoint(0x1F464),              // 👤
-    phone: String.fromCodePoint(0x1F4DE),             // 📞
-    box: String.fromCodePoint(0x1F4E6),               // 📦
-    tag: String.fromCodePoint(0x1F3F7, 0xFE0F),      // 🏷️
-    money: String.fromCodePoint(0x1F4B0),             // 💰
-    pin: String.fromCodePoint(0x1F4CC),               // 📍
-    warning: String.fromCodePoint(0x26A0, 0xFE0F),    // ⚠️
-    lebanon: String.fromCodePoint(0x1F1F1, 0x1F1E7),  // 🇱🇧
-    turkey: String.fromCodePoint(0x1F1F9, 0x1F1F7),   // 🇹🇷
-    diamond: String.fromCodePoint(0x1F48E)            // 💎
-  };
-
-  let msg = `${emoji.shop} *طلب جديد — Zein Shop*\n\n`;
-  msg += `${emoji.user} *الاسم:* ${customerName}\n`;
-  msg += `${emoji.phone} *رقم الهاتف:* ${customerPhone}\n\n`;
-  msg += `${emoji.box} *المنتجات المطلوبة:*\n`;
+export const generateOrderMessage = (items, customerName, customerPhone, total, discount = null, lang = 'ar') => {
+  const isRTL = lang === 'ar';
+  let msg = `*${isRTL ? 'طلب جديد' : 'New Order'} — Zein Shop*\n\n`;
+  msg += `*${isRTL ? 'الاسم' : 'Name'}:* ${customerName}\n`;
+  msg += `*${isRTL ? 'رقم الهاتف' : 'Phone'}:* ${customerPhone}\n\n`;
+  msg += `*${isRTL ? 'المنتجات المطلوبة' : 'Requested Products'}:*\n`;
   msg += `─────────────────\n`;
 
   items.forEach((item, i) => {
-    msg += `${i + 1}. *${item.productName}*\n`;
-    if (item.color) msg += `   اللون: ${item.color}\n`;
-    if (item.size) msg += `   المقاس: ${item.size}\n`;
-    msg += `   الكمية: ${item.quantity} × ${formatPrice(item.price)}\n`;
-    msg += `   المجموع: ${formatPrice(item.quantity * item.price)}\n\n`;
+    const itemName = lang === 'ar' ? (item.productName_ar || item.productName) : (item.productName_en || item.productName);
+    const itemColor = lang === 'ar' ? (item.color_ar || item.color) : (item.color_en || item.color);
+    
+    msg += `${i + 1}. *${itemName}*\n`;
+    if (itemColor) msg += `   ${isRTL ? 'اللون' : 'Color'}: ${itemColor}\n`;
+    if (item.size) msg += `   ${isRTL ? 'المقاس' : 'Size'}: ${item.size}\n`;
+    msg += `   ${isRTL ? 'الكمية' : 'Qty'}: ${item.quantity} × ${formatPrice(item.price)}\n`;
+    msg += `   ${isRTL ? 'المجموع' : 'Total'}: ${formatPrice(item.quantity * item.price)}\n\n`;
   });
 
   msg += `─────────────────\n`;
   if (discount) {
-    msg += `${emoji.tag} *الخصم:* ${discount.code} (-${discount.value}%)\n`;
+    msg += `*${isRTL ? 'الخصم' : 'Discount'}:* ${discount.code} (-${discount.value}%)\n`;
   }
-  msg += `${emoji.money} *الإجمالي الكلي: ${formatPrice(total)}*\n`;
-  msg += `${emoji.money} *الإجمالي (بالليرة): ${formatPrice(total, 'LBP')}*\n\n`;
-  msg += `${emoji.pin} *الدفع:* الدفع عند الاستلام\n`;
-  msg += `${emoji.warning} *أقر بموافقتي على أن الطلب يستغرق 10-12 يوماً للتوصيل (شحن ممتاز ${emoji.lebanon} 👈 ${emoji.turkey}).*\n`;
-  msg += `\nشكراً لتسوقكم من Zein Shop! ${emoji.diamond}`;
+  msg += `*${isRTL ? 'الإجمالي الكلي' : 'Grand Total'}: ${formatPrice(total)}*\n`;
+  msg += `*${isRTL ? 'الإجمالي (بالليرة)' : 'Total (LBP)'}: ${formatPrice(total, 'LBP')}*\n\n`;
+  msg += `*${isRTL ? 'الدفع' : 'Payment'}:* ${isRTL ? 'الدفع عند الاستلام' : 'Cash on Delivery'}\n`;
+  msg += `*${isRTL ? 'أقر بموافقتي على أن الطلب يستغرق 10-12 يوماً للتوصيل (شحن ممتاز).' : 'I acknowledge and agree that the order takes 10-12 days to deliver (Premium Shipping).'}\n`;
+  msg += `\n${isRTL ? 'شكراً لتسوقكم من Zein Shop!' : 'Thank you for shopping at Zein Shop!'}`;
 
   return msg;
 };

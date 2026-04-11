@@ -10,7 +10,7 @@ export default function ProductCard({ product }) {
   const [imgSrc, setImgSrc] = useState(null);
   const imgRef = useRef();
   const addItem = useCartStore((s) => s.addItem);
-  const { t, isRTL } = useLanguageStore();
+  const { t, isRTL, getLocalizedField } = useLanguageStore();
 
   const variants = product.product_variants || [];
   const colors = product.product_colors || [];
@@ -50,10 +50,14 @@ export default function ProductCard({ product }) {
     addItem({
       variantId: variant.id,
       productId: product.id,
-      productName: product.name,
+      productName: product.name, // Keep existing field for fallback
+      productName_en: product.name_en || product.name,
+      productName_ar: product.name_ar || product.name,
       price: Number(variant.base_price),
       costPrice: Number(variant.cost_price),
       color: color?.colors?.name || null,
+      color_en: color?.colors?.name_en || color?.colors?.name || null,
+      color_ar: color?.colors?.name_ar || color?.colors?.name || null,
       size: variant.size || null,
       image: color?.image_url || product.base_image_url || null,
       quantity: 1,
@@ -71,7 +75,7 @@ export default function ProductCard({ product }) {
         {imgSrc && (
           <img
             src={imgSrc}
-            alt={product.name}
+            alt={getLocalizedField(product, 'name')}
             loading="lazy"
             onLoad={() => setImageLoaded(true)}
             style={{ opacity: imageLoaded ? 1 : 0, transition: 'opacity 0.3s' }}
@@ -102,8 +106,8 @@ export default function ProductCard({ product }) {
       </div>
 
       <div className="product-card-info">
-        {category && <div className="product-card-category">{category.name}</div>}
-        <div className="product-card-name">{product.name}</div>
+        {category && <div className="product-card-category">{getLocalizedField(category, 'name')}</div>}
+        <div className="product-card-name">{getLocalizedField(product, 'name')}</div>
         <div className="product-card-price">
           <span className="price-main">{formatPrice(minPrice)}</span>
           <span className="price-secondary">{formatPrice(minPrice, 'LBP')}</span>
@@ -111,17 +115,17 @@ export default function ProductCard({ product }) {
         {colors.length > 0 && (
           <div className="product-card-colors">
             {colors.slice(0, 5).map((pc) => (
-              <div
+              <button
+                type="button"
                 key={pc.id}
                 className="color-swatch"
                 style={{ backgroundColor: pc.colors?.hex_code || '#ccc' }}
-                title={pc.colors?.name}
+                title={getLocalizedField(pc.colors, 'name')}
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
                   if (pc.image_url) {
                     setImgSrc(pc.image_url);
-                    setImageLoaded(false);
                   }
                 }}
               />

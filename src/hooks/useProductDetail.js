@@ -14,13 +14,13 @@ export function useProductDetail(productId) {
       const { data, error: err } = await supabase
         .from('products')
         .select(`
-          id, name, description, base_image_url, category_id, created_at,
-          categories(id, name),
+          id, name_en, name_ar, description_en, description_ar, base_image_url, category_id, created_at,
+          categories(id, name_en, name_ar),
           product_colors(
             id,
             image_url,
             color_id,
-            colors(id, name, hex_code)
+            colors(id, name_en, name_ar, hex_code)
           ),
           product_variants(
             id, size, stock_quantity, base_price, cost_price,
@@ -57,8 +57,8 @@ export function useRelatedProducts(categoryId, excludeId) {
       const { data } = await supabase
         .from('products')
         .select(`
-          id, name, base_image_url,
-          product_colors(id, image_url, colors(id, name, hex_code)),
+          id, name_en, name_ar, base_image_url,
+          product_colors(id, image_url, colors(id, name_en, name_ar, hex_code)),
           product_variants(id, base_price, stock_quantity)
         `)
         .eq('category_id', categoryId)

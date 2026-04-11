@@ -31,6 +31,17 @@ const useLanguageStore = create(
         return result;
       },
 
+      getLocalizedField: (obj, field) => {
+        if (!obj) return '';
+        const lang = get().language;
+        const suffix = lang === 'ar' ? '_ar' : '_en';
+        
+        // This will try the localized field (name_ar / name_en) first
+        // If it doesn't exist, it falls back to the old 'name' structure
+        // This prevents crashes before the database migration is complete
+        return obj[`${field}${suffix}`] || obj[field] || obj[`${field}_en`] || obj[`${field}_ar`] || '';
+      },
+
       isRTL: () => get().language === 'ar'
     }),
     {

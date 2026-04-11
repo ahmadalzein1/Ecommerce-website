@@ -12,7 +12,7 @@ export default function ProductPage() {
   const { product, loading, error } = useProductDetail(id);
   const addItem = useCartStore((s) => s.addItem);
   const openCart = useCartStore((s) => s.openCart);
-  const { t, isRTL } = useLanguageStore();
+  const { t, isRTL, getLocalizedField } = useLanguageStore();
 
   const [selectedColorId, setSelectedColorId] = useState(null);
   const [selectedSize, setSelectedSize] = useState(null);
@@ -78,7 +78,7 @@ export default function ProductPage() {
     if (product.base_image_url) imgs.push({ url: product.base_image_url, label: 'Main' });
     colors.forEach((pc) => {
       if (pc.image_url && !imgs.find((i) => i.url === pc.image_url)) {
-        imgs.push({ url: pc.image_url, label: pc.colors?.name || 'Variant' });
+        imgs.push({ url: pc.image_url, label: getLocalizedField(pc.colors, 'name') || 'Variant' });
       }
     });
     return imgs;
@@ -101,9 +101,13 @@ export default function ProductPage() {
       variantId: selectedVariant.id,
       productId: product.id,
       productName: product.name,
+      productName_en: product.name_en || product.name,
+      productName_ar: product.name_ar || product.name,
       price: Number(selectedVariant.base_price),
       costPrice: Number(selectedVariant.cost_price),
       color: colorInfo?.colors?.name || null,
+      color_en: colorInfo?.colors?.name_en || colorInfo?.colors?.name || null,
+      color_ar: colorInfo?.colors?.name_ar || colorInfo?.colors?.name || null,
       size: selectedVariant.size || null,
       image: colorInfo?.image_url || product.base_image_url || null,
       quantity,
@@ -154,11 +158,11 @@ export default function ProductPage() {
           {product.categories && (
             <>
               <ChevronRight size={14} />
-              <Link to={`/shop?category=${product.categories.id}`}>{product.categories.name}</Link>
+              <Link to={`/shop?category=${product.categories.id}`}>{getLocalizedField(product.categories, 'name')}</Link>
             </>
           )}
           <ChevronRight size={14} />
-          <span style={{ color: 'var(--color-text)' }}>{product.name}</span>
+          <span style={{ color: 'var(--color-text)' }}>{getLocalizedField(product, 'name')}</span>
         </div>
 
         <div className="product-detail-grid">
@@ -166,7 +170,7 @@ export default function ProductPage() {
           <div className="product-gallery">
             <div className="product-gallery-main">
               {mainImage ? (
-                <img src={mainImage} alt={product.name} />
+                <img src={mainImage} alt={getLocalizedField(product, 'name')} />
               ) : (
                 <div style={{
                   width: '100%', height: '100%',
@@ -197,19 +201,19 @@ export default function ProductPage() {
           <div className="product-info">
             {product.categories && (
               <span className="badge badge-gold" style={{ marginBottom: 'var(--space-md)', display: 'inline-block' }}>
-                {product.categories.name}
+                {getLocalizedField(product.categories, 'name')}
               </span>
             )}
 
-            <h1 className="product-title">{product.name}</h1>
+            <h1 className="product-title">{getLocalizedField(product, 'name')}</h1>
 
             <div className="product-price-section">
               <span className="product-price-main">{formatPrice(price)}</span>
               <span className="product-price-lbp">{formatPrice(price, 'LBP')}</span>
             </div>
 
-            {product.description && (
-              <p className="product-description">{product.description}</p>
+            {getLocalizedField(product, 'description') && (
+              <p className="product-description">{getLocalizedField(product, 'description')}</p>
             )}
 
             {/* Color Selection */}
@@ -229,7 +233,7 @@ export default function ProductPage() {
                       key={pc.id}
                       className={`color-swatch color-swatch-lg ${selectedColorId === pc.id ? 'active' : ''}`}
                       style={{ backgroundColor: pc.colors?.hex_code || '#ccc' }}
-                      title={pc.colors?.name}
+                      title={getLocalizedField(pc.colors, 'name')}
                       onClick={() => handleColorSelect(pc)}
                     />
                   ))}

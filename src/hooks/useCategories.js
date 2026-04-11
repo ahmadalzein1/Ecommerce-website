@@ -9,8 +9,8 @@ export function useCategories() {
     const fetch = async () => {
       const { data } = await supabase
         .from('categories')
-        .select('id, name, parent_id')
-        .order('name');
+        .select('id, name_en, name_ar, parent_id')
+        .order('name_ar');
 
       // Build tree structure
       const map = {};

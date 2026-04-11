@@ -13,7 +13,7 @@ export default function CartDrawer() {
     applyDiscount, removeDiscount,
     getSubtotal, getDiscountAmount, getTotal, getItemCount
   } = useCartStore();
-  const { t, isRTL } = useLanguageStore();
+  const { t, isRTL, getLocalizedField } = useLanguageStore();
 
   const [discountCode, setDiscountCode] = useState('');
 
@@ -60,10 +60,10 @@ export default function CartDrawer() {
                   )}
                 </div>
                 <div className="cart-item-details">
-                  <div className="cart-item-name">{item.productName}</div>
+                  <div className="cart-item-name">{getLocalizedField(item, 'productName')}</div>
                   <div className="cart-item-variant">
-                    {item.color && (isRTL() ? `اللون: ${item.color}` : `Color: ${item.color}`)}
-                    {item.color && item.size && ' · '}
+                    {getLocalizedField(item, 'color') && (isRTL() ? `اللون: ${getLocalizedField(item, 'color')}` : `Color: ${getLocalizedField(item, 'color')}`)}
+                    {getLocalizedField(item, 'color') && item.size && ' · '}
                     {item.size && (isRTL() ? `المقاس: ${item.size}` : `Size: ${item.size}`)}
                   </div>
                   <div className="cart-item-price">{formatPrice(item.price * item.quantity)}</div>

@@ -31,12 +31,12 @@ export function useProducts({ categoryId, colorId, searchQuery, sortBy, page = 0
       let query = supabase
         .from('products')
         .select(`
-          id, name, description, base_image_url, category_id, created_at,
-          categories(id, name),
+          id, name_en, name_ar, description_en, description_ar, base_image_url, category_id, created_at,
+          categories(id, name_en, name_ar),
           product_colors(
             id,
             image_url,
-            colors(id, name, hex_code)
+            colors(id, name_en, name_ar, hex_code)
           ),
           product_variants(
             id, size, stock_quantity, base_price, cost_price,
@@ -50,7 +50,8 @@ export function useProducts({ categoryId, colorId, searchQuery, sortBy, page = 0
       }
 
       if (searchQuery && searchQuery.trim()) {
-        query = query.ilike('name', `%${searchQuery.trim()}%`);
+        const q = searchQuery.trim();
+        query = query.or(`name_en.ilike.%${q}%,name_ar.ilike.%${q}%`);
       }
 
       switch (sortBy) {
@@ -61,7 +62,7 @@ export function useProducts({ categoryId, colorId, searchQuery, sortBy, page = 0
           query = query.order('created_at', { ascending: false });
           break;
         case 'name-asc':
-          query = query.order('name', { ascending: true });
+          query = query.order('name_ar', { ascending: true });
           break;
         case 'oldest':
           query = query.order('created_at', { ascending: true });
@@ -123,12 +124,12 @@ export function useFeaturedProducts() {
       const { data } = await supabase
         .from('products')
         .select(`
-          id, name, description, base_image_url, category_id, created_at,
-          categories(id, name),
+          id, name_en, name_ar, description_en, description_ar, base_image_url, category_id, created_at,
+          categories(id, name_en, name_ar),
           product_colors(
             id,
             image_url,
-            colors(id, name, hex_code)
+            colors(id, name_en, name_ar, hex_code)
           ),
           product_variants(
             id, size, stock_quantity, base_price, cost_price,

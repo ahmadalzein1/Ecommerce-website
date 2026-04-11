@@ -13,7 +13,7 @@ export default function CheckoutPage() {
     applyDiscount, removeDiscount, removeItem, updateQuantity,
     getSubtotal, getDiscountAmount, getTotal, clearCart
   } = useCartStore();
-  const { t, isRTL } = useLanguageStore();
+  const { t, isRTL, getLocalizedField, language } = useLanguageStore();
 
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -131,7 +131,7 @@ export default function CheckoutPage() {
       }
 
       // Generate WhatsApp message
-      const message = generateOrderMessage(items, name, phone, total, discount);
+      const message = generateOrderMessage(items, name, phone, total, discount, language);
       const whatsappUrl = generateWhatsAppUrl(message);
 
       // Clear cart and navigate
@@ -301,10 +301,10 @@ export default function CheckoutPage() {
                   )}
                 </div>
                 <div className="checkout-item-details">
-                  <div className="checkout-item-name">{item.productName}</div>
+                  <div className="checkout-item-name">{getLocalizedField(item, 'productName')}</div>
                   <div className="checkout-item-variant">
-                    {item.color && `${item.color}`}
-                    {item.color && item.size && ' · '}
+                    {getLocalizedField(item, 'color') && `${getLocalizedField(item, 'color')}`}
+                    {getLocalizedField(item, 'color') && item.size && ' · '}
                     {item.size && `${item.size}`}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>

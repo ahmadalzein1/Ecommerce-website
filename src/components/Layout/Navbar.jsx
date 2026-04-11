@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { Search, ShoppingBag, Menu, X } from 'lucide-react';
 import useCartStore from '../../stores/cartStore';
 import useLanguageStore from '../../stores/languageStore';
+import SearchModal from '../UI/SearchModal';
 
 const DiamondLogo = () => (
   <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -23,7 +24,7 @@ const LanguageToggle = () => {
       aria-label="Toggle Language"
       style={{ fontWeight: 'bold', fontSize: '13px' }}
     >
-      {language === 'ar' ? 'EN' : 'AR'}
+      {language === 'ar' ? 'EN' : 'عربي'}
     </button>
   );
 };

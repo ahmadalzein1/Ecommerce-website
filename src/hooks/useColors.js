@@ -9,8 +9,8 @@ export function useColors() {
     const fetch = async () => {
       const { data } = await supabase
         .from('colors')
-        .select('id, name, hex_code')
-        .order('name');
+        .select('id, name_en, name_ar, hex_code')
+        .order('name_ar');
 
       setColors(data || []);
       setLoading(false);

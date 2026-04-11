@@ -9,7 +9,7 @@ const InstagramIcon = ({ size = 18 }) => (
     <line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/>
   </svg>
 );
-import { STORE_NAME, INSTAGRAM_URL, WHATSAPP_NUMBER, ADMIN_EMAIL, DELIVERY_INFO } from '../../lib/constants';
+import { STORE_NAME, INSTAGRAM_URL, WHATSAPP_NUMBER, ADMIN_EMAIL } from '../../lib/constants';
 
 export default function Footer() {
   const { t, isRTL } = useLanguageStore();
@@ -31,10 +31,6 @@ export default function Footer() {
             <div className="footer-social">
               <a href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer" aria-label="Instagram">
                 <InstagramIcon size={18} />
-              </a>
-
-              <a href={`mailto:${ADMIN_EMAIL}`} aria-label="Email">
-                <Mail size={18} />
               </a>
             </div>
           </div>
@@ -59,21 +55,26 @@ export default function Footer() {
             <h4>{isRTL() ? 'معلومات' : 'Information'}</h4>
             <ul>
               <li style={{ display: 'flex', alignItems: 'center', gap: '8px', opacity: 0.7 }}>
-                <MapPin size={14} /> {DELIVERY_INFO}
+                <MapPin size={14} /> {isRTL() ? 'توصيل لجميع أنحاء لبنان' : 'Delivery to all over Lebanon'}
               </li>
 
               <li style={{ opacity: 0.7 }}>{t('common.cod')}</li>
             </ul>
-            <div style={{ marginTop: '16px', padding: '12px', background: 'rgba(255,255,255,0.05)', borderRadius: '8px', fontSize: '0.85rem' }}>
-              <span style={{ color: 'var(--color-gold-light)', fontWeight: 'bold' }}>{t('common.importantNote')}:</span><br/>
-              {t('common.deliveryNote')}
-            </div>
           </div>
         </div>
 
-        <div className="footer-bottom">
+        <div className="footer-bottom" style={{ flexDirection: 'column', gap: '8px', alignItems: 'center' }}>
           <span>© {new Date().getFullYear()} {t('common.shopName')}. {t('common.allRightsReserved')}</span>
-          <span>{t('common.madeInLebanon')}</span>
+          <span style={{ fontSize: '0.9rem', color: '#ffffff', opacity: 0.95, display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'center', fontWeight: '500' }}>
+            <span style={{ opacity: 0.8 }}>{isRTL() ? 'تطوير وبرمجة:' : 'Developed by:'}</span>{' '}
+            <a href="https://linkedin.com/in/ahmad-al-zein-4b9054386" target="_blank" rel="noopener noreferrer" style={{ color: '#ffffff', fontWeight: 'bold', textDecoration: 'underline' }}>
+              Ahmad Al Zein
+            </a>
+            <span style={{ opacity: 0.5 }}>|</span>
+            <a href="mailto:zeinahmad763@gmail.com" style={{ color: '#ffffff', textDecoration: 'underline' }}>
+              zeinahmad763@gmail.com
+            </a>
+          </span>
         </div>
       </div>
     </footer>
