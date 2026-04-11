@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { SlidersHorizontal, X } from 'lucide-react';
 import { useProducts } from '../hooks/useProducts';
@@ -20,9 +20,36 @@ export default function ShopPage() {
     setCategoryId, setColorId, setSortBy, resetFilters
   } = useFilterStore();
 
-  const { products, loading, hasMore } = useProducts({ categoryId, colorId, searchQuery, sortBy, page });
   const { categories } = useCategories();
   const { colors } = useColors();
+
+  const activeCategoryIds = useMemo(() => {
+    if (!categoryId || !categories.length) return categoryId;
+    
+    const findNode = (nodes) => {
+      for (let n of nodes) {
+        if (n.id === categoryId) return n;
+        if (n.children) {
+          let found = findNode(n.children);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
+    
+    const node = findNode(categories);
+    if (!node) return categoryId;
+    
+    let ids = [];
+    const getIds = (n) => {
+      ids.push(n.id);
+      if (n.children) n.children.forEach(getIds);
+    };
+    getIds(node);
+    return ids;
+  }, [categoryId, categories]);
+
+  const { products, loading, hasMore } = useProducts({ categoryId: activeCategoryIds, colorId, searchQuery, sortBy, page });
 
   // Apply URL params on mount
   useEffect(() => {
@@ -84,6 +111,11 @@ export default function ShopPage() {
               style={{ [isRTL() ? 'paddingRight' : 'paddingLeft']: `${16 + cat.depth * 16}px` }}
             >
               {getLocalizedField(cat, 'name')}
+              {(cat.name_en?.toLowerCase().includes('girl') || cat.name_ar?.includes('بنات')) && (
+                <span style={{ fontSize: '0.85em', opacity: 0.7, margin: '0 4px', display: 'inline-block' }}>
+                  {isRTL() ? '(من 1 إلى 14 سنة)' : '(1 to 14 years)'}
+                </span>
+              )}
             </div>
           ))}
         </div>

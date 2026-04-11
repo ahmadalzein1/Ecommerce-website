@@ -94,7 +94,14 @@ export default function HomePage() {
                     }}
                   />
                   <div className="category-card-name">
-                    {getLocalizedField(cat, 'name')}
+                    <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
+                      <span>{getLocalizedField(cat, 'name')}</span>
+                      {(cat.name_en?.toLowerCase().includes('girl') || cat.name_ar?.includes('بنات')) && (
+                        <span style={{ fontSize: '0.65em', opacity: 0.9, fontWeight: 500 }}>
+                          {isRTL() ? '(من 1 إلى 14 سنة)' : '(1 to 14 years)'}
+                        </span>
+                      )}
+                    </div>
                     {cat.children?.length > 0 && (
                       <div className="category-card-count">
                         {cat.children.length} {isRTL() ? 'فئات فرعية' : 'Subcategories'}

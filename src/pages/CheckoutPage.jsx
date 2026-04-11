@@ -264,9 +264,9 @@ export default function CheckoutPage() {
                   <input type="checkbox" required style={{ width: '16px', height: '16px', accentColor: 'var(--color-primary)' }} />
                   <span>
                     {isRTL() ? (
-                      <>أقر وأوافق على أن الطلب يستغرق من 10 إلى 12 يوماً للتوصيل (شحن ممتاز <FlagTR size={16} /> إلى <FlagLB size={16} />).</>
+                      <>أقر وأوافق على أن الطلب يستغرق من 10 إلى 12 يوماً للتوصيل (شحن ممتاز من <FlagTR size={16} /> إلى <FlagLB size={16} />).</>
                     ) : (
-                      <>I acknowledge and agree that the order takes 10 to 12 days to deliver (Premium Shipping <FlagTR size={16} /> to <FlagLB size={16} />).</>
+                      <>I acknowledge and agree that the order takes 10 to 12 days to deliver (Premium Shipping from <FlagTR size={16} /> to <FlagLB size={16} />).</>
                     )}
                   </span>
                 </label>

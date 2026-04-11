@@ -94,7 +94,7 @@ export const translations = {
       fullName: 'الاسم الكامل *',
       phone: 'رقم الهاتف *',
       namePlaceholder: 'أدخل اسمك الكامل',
-      phonePlaceholder: 'مثال: 03 123 456',
+      phonePlaceholder: '\u200E03 123 456\u200E :مثال',
       discountCode: 'كود الخصم',
       codePlaceholder: 'أدخل الكود',
       apply: 'تطبيق',

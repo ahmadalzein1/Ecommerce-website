@@ -46,7 +46,11 @@ export function useProducts({ categoryId, colorId, searchQuery, sortBy, page = 0
         .range(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE - 1);
 
       if (categoryId) {
-        query = query.eq('category_id', categoryId);
+        if (Array.isArray(categoryId)) {
+          query = query.in('category_id', categoryId);
+        } else {
+          query = query.eq('category_id', categoryId);
+        }
       }
 
       if (searchQuery && searchQuery.trim()) {

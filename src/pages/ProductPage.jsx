@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ShoppingBag, ChevronRight, Check, Minus, Plus, ArrowLeft, AlertCircle, MessageCircle } from 'lucide-react';
 import { useProductDetail, useRelatedProducts } from '../hooks/useProductDetail';
@@ -91,6 +91,13 @@ export default function ProductPage() {
     });
     return v ? v.stock_quantity : 0;
   };
+
+  useEffect(() => {
+    if (availableSizes.length > 0 && !selectedSize) {
+      const firstAvailable = availableSizes.find((size) => getStockForSize(size) > 0);
+      setSelectedSize(firstAvailable || availableSizes[0]);
+    }
+  }, [availableSizes, selectedSize, selectedColorId]);
 
   const handleAddToCart = () => {
     if (!selectedVariant || stock === 0) return;

@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import useCartStore from '../../stores/cartStore';
 import useLanguageStore from '../../stores/languageStore';
 import { formatPrice } from '../../lib/constants';
+import { FlagLB, FlagTR } from './FlagIcons';
 
 export default function CartDrawer() {
   const {
@@ -155,7 +156,15 @@ export default function CartDrawer() {
               textAlign: 'center',
               color: 'var(--color-text-muted)'
             }}>
-              {t('common.deliveryNote')}
+              {isRTL() ? (
+                <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: '4px' }}>
+                  شحن ممتاز: يستغرق توصيل الطلبات من 10 إلى 12 يوماً (من تركيا <FlagTR size={14} /> إلى لبنان <FlagLB size={14} />).
+                </span>
+              ) : (
+                <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: '4px' }}>
+                  Premium Shipping: Orders take 10-12 days to arrive (Turkey <FlagTR size={14} /> to Lebanon <FlagLB size={14} />).
+                </span>
+              )}
             </div>
 
             <Link
