@@ -877,6 +877,24 @@ h1, h2, h3, h4, h5, h6 {
   height: 32px;
 }
 
+.color-swatch.out-of-stock {
+  opacity: 0.35;
+  position: relative;
+  overflow: hidden;
+}
+
+.color-swatch.out-of-stock::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: -10%;
+  width: 120%;
+  height: 1.5px;
+  background: #333;
+  transform: rotate(-45deg);
+  opacity: 0.6;
+}
+
 /* ─── Category Card ─────────────────────────────────────── */
 .category-grid {
   display: flex;

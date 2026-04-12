@@ -9,12 +9,22 @@ import { supabase } from '../lib/supabase';
 import useAuthStore from '../stores/authStore';
 import { formatPrice } from '../lib/constants';
 
+const statusLabels = {
+  pending: 'قيد الانتظار',
+  delivering: 'قيد التوصيل',
+  paid: 'مدفوع',
+  cancelled: 'ملغى',
+  expired: 'منتهي',
+};
+
 export default function AdminDashboard() {
   const [orders, setOrders] = useState([]);
   const [stats, setStats] = useState({ totalOrders: 0, revenue: 0, customers: 0 });
   const [loading, setLoading] = useState(true);
   const { logout, user } = useAuthStore();
   const navigate = useNavigate();
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [updatingId, setUpdatingId] = useState(null);
 
   useEffect(() => {
     fetchData();
@@ -52,6 +62,73 @@ export default function AdminDashboard() {
   const handleLogout = async () => {
     await logout();
     navigate('/admin/login');
+  };
+
+  const handleUpdateStatus = async (order, newStatus) => {
+    if (!order) return;
+    const oldStatus = order.status;
+    if (oldStatus === newStatus) return;
+
+    setUpdatingId(order.id);
+    try {
+      // Define groups
+      const deductedGroup = ['delivering', 'paid'];
+      const notDeductedGroup = ['pending', 'cancelled', 'expired'];
+
+      const wasDeducted = deductedGroup.includes(oldStatus);
+      const shouldBeDeducted = deductedGroup.includes(newStatus);
+
+      let stockError = null;
+
+      // Logic: Transitioning between groups
+      if (shouldBeDeducted && !wasDeducted) {
+        // MOVING TO DEDUCTED: Deduct stock for each item
+        for (const item of order.order_items) {
+          const { error: err } = await supabase.rpc('decrement_stock', {
+            variant_id: item.product_variant_id,
+            qty: item.quantity
+          });
+          if (err) stockError = err;
+        }
+      } else if (!shouldBeDeducted && wasDeducted) {
+        // MOVING TO NOT DEDUCTED: Revert stock
+        for (const item of order.order_items) {
+          // Manual fallback for incrementing since no RPC exists
+          const { data: variant } = await supabase
+            .from('product_variants')
+            .select('stock_quantity')
+            .eq('id', item.product_variant_id)
+            .single();
+
+          if (variant) {
+            await supabase
+              .from('product_variants')
+              .update({ stock_quantity: variant.stock_quantity + item.quantity })
+              .eq('id', item.product_variant_id);
+          }
+        }
+      }
+
+      // Update Order Status
+      const { error: updateError } = await supabase
+        .from('orders')
+        .update({ status: newStatus })
+        .eq('id', order.id);
+
+      if (updateError) throw updateError;
+      if (stockError) console.error('Stock error during transition:', stockError);
+
+      // Refresh data
+      await fetchData();
+      if (selectedOrder?.id === order.id) {
+        setSelectedOrder({ ...order, status: newStatus });
+      }
+    } catch (err) {
+      console.error('Error updating status:', err);
+      alert('Failed to update status. Please check your connection.');
+    } finally {
+      setUpdatingId(null);
+    }
   };
 
   return (
@@ -172,7 +249,7 @@ export default function AdminDashboard() {
                       </td>
                     </tr>
                   ) : orders.map((order) => (
-                    <tr key={order.id}>
+                    <tr key={order.id} onClick={() => setSelectedOrder(order)} style={{ cursor: 'pointer' }}>
                       <td>#{order.id.slice(0, 8)}</td>
                       <td>
                         <div className="table-user">
@@ -184,13 +261,13 @@ export default function AdminDashboard() {
                       <td><strong>{formatPrice(order.total_amount)}</strong></td>
                       <td>
                         <span className={`status-badge ${order.status}`}>
-                          {order.status === 'pending' ? 'قيد الانتظار' : order.status}
+                          {statusLabels[order.status] || order.status}
                         </span>
                       </td>
                       <td>
-                        <button className="table-action">
-                          <ExternalLink size={16} />
-                        </button>
+                        <div className="table-action">
+                          <ChevronRight size={16} />
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -200,6 +277,61 @@ export default function AdminDashboard() {
           </section>
         </div>
       </main>
+
+      {/* Order Details Modal */}
+      {selectedOrder && (
+        <div className="modal-overlay" onClick={() => setSelectedOrder(null)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>تفاصيل الطلب #{selectedOrder.id.slice(0, 8)}</h2>
+              <button className="close-btn" onClick={() => setSelectedOrder(null)}><LogOut size={16} /></button>
+            </div>
+            
+            <div className="modal-body">
+              <div className="order-meta">
+                <div className="meta-item">
+                  <label>العميل</label>
+                  <span>{selectedOrder.customer_name}</span>
+                </div>
+                <div className="meta-item">
+                  <label>رقم الهاتف</label>
+                  <span>{selectedOrder.customer_phone}</span>
+                </div>
+                <div className="meta-item">
+                  <label>حالة الطلب</label>
+                  <select 
+                    value={selectedOrder.status}
+                    disabled={updatingId === selectedOrder.id}
+                    onChange={(e) => handleUpdateStatus(selectedOrder, e.target.value)}
+                    className={`status-select ${selectedOrder.status}`}
+                  >
+                    {['pending', 'delivering', 'paid', 'cancelled', 'expired'].map(s => (
+                      <option key={s} value={s}>{statusLabels[s] || s}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="order-items-list">
+                <h3>المنتجات</h3>
+                {selectedOrder.order_items?.map((item, idx) => (
+                  <div key={idx} className="order-item-row">
+                    <span>{item.quantity}x المنتج</span>
+                    <strong>{formatPrice(item.price_at_purchase * item.quantity)}</strong>
+                  </div>
+                ))}
+              </div>
+
+              <div className="order-total-summary">
+                <div className="summary-row">
+                  <span>الإجمالي</span>
+                  <strong>{formatPrice(selectedOrder.total_amount)}</strong>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <style dangerouslySetInnerHTML={{ __html: `
         .admin-dashboard {
@@ -492,6 +624,99 @@ export default function AdminDashboard() {
         @keyframes pulse {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.5; }
+        }
+
+        /* Modal Styles */
+        .modal-overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(0,0,0,0.5);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 1000;
+          backdrop-filter: blur(4px);
+        }
+        .modal-content {
+          background: white;
+          width: 100%;
+          max-width: 500px;
+          border-radius: 24px;
+          overflow: hidden;
+          box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
+          animation: modalIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        @keyframes modalIn {
+          from { transform: scale(0.9); opacity: 0; }
+          to { transform: scale(1); opacity: 1; }
+        }
+        .modal-header {
+          padding: 24px;
+          border-bottom: 1px solid #f1f5f9;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+        .modal-body { padding: 32px; }
+        .order-meta {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 24px;
+          margin-bottom: 32px;
+        }
+        .meta-item label {
+          display: block;
+          font-size: 12px;
+          color: #64748b;
+          margin-bottom: 4px;
+        }
+        .order-items-list h3 {
+          font-size: 14px;
+          margin-bottom: 16px;
+          color: #0f172a;
+        }
+        .order-item-row {
+          display: flex;
+          justify-content: space-between;
+          padding: 12px 0;
+          border-bottom: 1px solid #f1f5f9;
+          font-size: 14px;
+        }
+        .order-total-summary {
+          margin-top: 24px;
+          padding-top: 24px;
+          border-top: 2px solid #f1f5f9;
+        }
+        .summary-row {
+          display: flex;
+          justify-content: space-between;
+          font-size: 18px;
+          font-weight: 700;
+        }
+        .status-select {
+          width: 100%;
+          padding: 8px 12px;
+          border-radius: 10px;
+          font-weight: 600;
+          font-size: 13px;
+          border: 1px solid #e2e8f0;
+          cursor: pointer;
+        }
+        .status-select.pending { color: #f59e0b; background: rgba(245, 158, 11, 0.1); }
+        .status-select.delivering { color: #8b5cf6; background: rgba(139, 92, 246, 0.1); }
+        .status-select.paid { color: #10b981; background: rgba(16, 185, 129, 0.1); }
+        .status-select.cancelled, .status-select.expired { color: #ef4444; background: rgba(239, 68, 68, 0.1); }
+        
+        .close-btn {
+          width: 32px;
+          height: 32px;
+          border-radius: 8px;
+          border: none;
+          background: #f1f5f9;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
         }
       ` }} />
     </div>

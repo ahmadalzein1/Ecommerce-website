@@ -80,37 +80,8 @@ export default function CheckoutPage() {
 
       if (itemsError) throw itemsError;
 
-      // Update stock for each variant
-      for (const item of items) {
-        try {
-          // Attempt using standard RPC first
-          const { error: rpcError } = await supabase.rpc('decrement_stock', {
-            variant_id: item.variantId,
-            qty: item.quantity
-          });
-          
-          if (rpcError) throw rpcError;
-          
-        } catch (stockError) {
-          console.warn('Stock decrement RPC failed, attempting manual fallback:', stockError);
-          
-          // Fallback: manually fetch and update (Note: this is not atomic, RPC is better)
-          const { data: variant, error: fetchError } = await supabase
-            .from('product_variants')
-            .select('stock_quantity')
-            .eq('id', item.variantId)
-            .single();
-
-          if (!fetchError && variant) {
-            await supabase
-              .from('product_variants')
-              .update({
-                stock_quantity: Math.max(0, variant.stock_quantity - item.quantity)
-              })
-              .eq('id', item.variantId);
-          }
-        }
-      }
+      // Update stock for each variant moved to Admin Confirmation
+      // (Removed logic that was here)
 
       // Increment discount usage
       if (discount) {
@@ -312,7 +283,11 @@ export default function CheckoutPage() {
                       <Minus size={12} />
                     </button>
                     <span style={{ fontWeight: 600, fontSize: 'var(--text-sm)' }}>{item.quantity}</span>
-                    <button className="qty-btn" onClick={() => updateQuantity(item.variantId, item.quantity + 1)}>
+                    <button 
+                      className="qty-btn" 
+                      onClick={() => updateQuantity(item.variantId, item.quantity + 1)}
+                      disabled={item.maxStock && item.quantity >= item.maxStock}
+                    >
                       <Plus size={12} />
                     </button>
                     <button onClick={() => removeItem(item.variantId)} style={{ marginLeft: 'auto', color: 'var(--color-text-muted)', padding: '4px' }}>

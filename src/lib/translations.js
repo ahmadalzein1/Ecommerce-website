@@ -78,7 +78,8 @@ export const translations = {
       description: 'الوصف',
       selectColor: 'اختر اللون',
       selectSize: 'اختر المقاس',
-      similarProducts: 'منتجات مشابهة'
+      similarProducts: 'منتجات مشابهة',
+      otherColorsAvailable: 'ألوان أخرى متوفرة'
     },
     cart: {
       title: 'سلة التسوق',
@@ -199,7 +200,8 @@ export const translations = {
       description: 'Description',
       selectColor: 'Select Color',
       selectSize: 'Select Size',
-      similarProducts: 'Similar Products'
+      similarProducts: 'Similar Products',
+      otherColorsAvailable: 'Other colors available'
     },
     cart: {
       title: 'Shopping Cart',
@@ -237,7 +239,10 @@ export const translations = {
       recentOrders: 'Recent Orders',
       status: {
         pending: 'Pending',
-        completed: 'Completed'
+        delivering: 'Delivering',
+        paid: 'Paid',
+        cancelled: 'Cancelled',
+        expired: 'Expired'
       }
     }
   }

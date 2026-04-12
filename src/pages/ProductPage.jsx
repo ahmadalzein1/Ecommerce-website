@@ -10,8 +10,7 @@ import { formatPrice, WHATSAPP_NUMBER } from '../lib/constants';
 export default function ProductPage() {
   const { id } = useParams();
   const { product, loading, error } = useProductDetail(id);
-  const addItem = useCartStore((s) => s.addItem);
-  const openCart = useCartStore((s) => s.openCart);
+  const { items, addItem, openCart } = useCartStore();
   const { t, isRTL, getLocalizedField } = useLanguageStore();
 
   const [selectedColorId, setSelectedColorId] = useState(null);
@@ -49,19 +48,42 @@ export default function ProductPage() {
     }) || null;
   }, [selectedColorId, selectedSize, variants]);
 
+  // Get colors that have at least one variant in stock
+  const colorsInStockIds = useMemo(() => {
+    return colors
+      .filter(pc => variants.some(v => v.product_color_id === pc.id && v.stock_quantity > 0))
+      .map(pc => pc.id);
+  }, [colors, variants]);
+
+  const hasOtherColorsInStock = useMemo(() => {
+    return colorsInStockIds.some(id => id !== selectedColorId);
+  }, [colorsInStockIds, selectedColorId]);
+
   const price = selectedVariant ? Number(selectedVariant.base_price) : 0;
   const stock = selectedVariant ? selectedVariant.stock_quantity : 0;
 
+  // Check if current variant is in cart
+  const cartItem = useMemo(() => {
+    return items.find(i => i.variantId === selectedVariant?.id);
+  }, [items, selectedVariant]);
+
+  const isInCart = !!cartItem;
+
   // Set initial selections
-  useMemo(() => {
+  useEffect(() => {
     if (product && colors.length > 0 && !selectedColorId) {
-      setSelectedColorId(colors[0].id);
-      const colorImage = colors[0].image_url;
-      setMainImage(colorImage || product.base_image_url);
+      // Prioritize the first color that has at least one size in stock
+      const firstInStockId = colorsInStockIds[0];
+      const initialColor = colors.find(c => c.id === (firstInStockId || colors[0].id));
+      
+      if (initialColor) {
+        setSelectedColorId(initialColor.id);
+        setMainImage(initialColor.image_url || product.base_image_url);
+      }
     } else if (product && !selectedColorId) {
       setMainImage(product.base_image_url);
     }
-  }, [product]);
+  }, [product, colorsInStockIds]);
 
   // Handle color selection
   const handleColorSelect = (pc) => {
@@ -99,6 +121,15 @@ export default function ProductPage() {
     }
   }, [availableSizes, selectedSize, selectedColorId]);
 
+  // Sync quantity with cart if already present
+  useEffect(() => {
+    if (cartItem) {
+      setQuantity(cartItem.quantity);
+    } else {
+      setQuantity(1);
+    }
+  }, [cartItem]);
+
   const handleAddToCart = () => {
     if (!selectedVariant || stock === 0) return;
 
@@ -119,7 +150,7 @@ export default function ProductPage() {
       image: colorInfo?.image_url || product.base_image_url || null,
       quantity,
       maxStock: stock,
-    });
+    }, true); // Always replace when adding/updating from product page
 
     setAdded(true);
     setTimeout(() => setAdded(false), 2000);
@@ -235,15 +266,18 @@ export default function ProductPage() {
                   )}
                 </div>
                 <div className="product-colors-select">
-                  {colors.map((pc) => (
-                    <div
-                      key={pc.id}
-                      className={`color-swatch color-swatch-lg ${selectedColorId === pc.id ? 'active' : ''}`}
-                      style={{ backgroundColor: pc.colors?.hex_code || '#ccc' }}
-                      title={getLocalizedField(pc.colors, 'name')}
-                      onClick={() => handleColorSelect(pc)}
-                    />
-                  ))}
+                  {colors.map((pc) => {
+                    const isInStock = colorsInStockIds.includes(pc.id);
+                    return (
+                      <div
+                        key={pc.id}
+                        className={`color-swatch color-swatch-lg ${selectedColorId === pc.id ? 'active' : ''} ${!isInStock ? 'out-of-stock' : ''}`}
+                        style={{ backgroundColor: pc.colors?.hex_code || '#ccc' }}
+                        title={`${getLocalizedField(pc.colors, 'name')}${!isInStock ? ` (${t('product.outOfStock')})` : ''}`}
+                        onClick={() => handleColorSelect(pc)}
+                      />
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -281,7 +315,38 @@ export default function ProductPage() {
             {selectedVariant && (
               <div className={`product-stock ${stock === 0 ? 'out-of-stock' : stock <= 3 ? 'low-stock' : 'in-stock'}`}>
                 {stock === 0 ? (
-                  <><AlertCircle size={16} /> {t('product.outOfStock')}</>
+                  <>
+                    <AlertCircle size={16} /> 
+                    {t('product.outOfStock')}
+                    {hasOtherColorsInStock && (
+                      <span 
+                        onClick={() => {
+                          const firstAvailableId = colorsInStockIds.find(id => id !== selectedColorId);
+                          const pc = colors.find(c => c.id === firstAvailableId);
+                          if (pc) handleColorSelect(pc);
+                        }}
+                        style={{ 
+                          marginLeft: isRTL() ? 0 : '10px', 
+                          marginRight: isRTL() ? '10px' : 0,
+                          cursor: 'pointer',
+                          fontSize: '0.9em',
+                          fontWeight: 600,
+                          color: '#15803d',
+                          background: 'rgba(34, 197, 94, 0.15)',
+                          padding: '4px 10px',
+                          borderRadius: '6px',
+                          border: '1px solid rgba(34, 197, 94, 0.2)',
+                          transition: 'all 0.2s ease',
+                          display: 'inline-flex',
+                          alignItems: 'center'
+                        }}
+                        onMouseOver={(e) => e.currentTarget.style.background = 'rgba(34, 197, 94, 0.25)'}
+                        onMouseOut={(e) => e.currentTarget.style.background = 'rgba(34, 197, 94, 0.15)'}
+                      >
+                        {t('product.otherColorsAvailable')}
+                      </span>
+                    )}
+                  </>
                 ) : stock <= 3 ? (
                   <><AlertCircle size={16} /> {isRTL() ? `تبقى ${stock} فقط!` : `Only ${stock} left!`}</>
                 ) : (
@@ -320,9 +385,9 @@ export default function ProductPage() {
                 disabled={!selectedVariant || stock === 0}
               >
                 {added ? (
-                  <><Check size={18} /> {isRTL() ? 'تمت الإضافة!' : 'Added!'}</>
+                  <><Check size={18} /> {isRTL() ? 'تم تحديث السلة!' : 'Cart Updated!'}</>
                 ) : (
-                  <><ShoppingBag size={18} /> {t('product.addToCart')}</>
+                  <><ShoppingBag size={18} /> {isInCart ? (isRTL() ? 'تعديل السلة' : 'Update Cart') : t('product.addToCart')}</>
                 )}
               </button>
             </div>

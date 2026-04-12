@@ -8,7 +8,8 @@ const useAuthStore = create(
     (set, get) => ({
       user: null,
       session: null,
-      loading: true,
+      loading: false,
+      isInitialized: false,
       isAdmin: false,
 
       initialize: async () => {
@@ -32,6 +33,8 @@ const useAuthStore = create(
             set({ session: null, user: null, isAdmin: false });
           }
         });
+
+        set({ isInitialized: true });
       },
 
       login: async (email, password) => {
@@ -65,7 +68,7 @@ const useAuthStore = create(
     }),
     {
       name: 'zein-auth-storage',
-      partialize: (state) => ({ user: state.user, isAdmin: state.isAdmin }),
+      partialize: (state) => ({ user: state.user }),
     }
   )
 );

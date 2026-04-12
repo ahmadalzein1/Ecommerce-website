@@ -19,13 +19,9 @@ import useAuthStore from './stores/authStore';
 import { Navigate } from 'react-router-dom';
 
 function ProtectedRoute({ children }) {
-  const { isAdmin, loading, initialize } = useAuthStore();
+  const { isAdmin, isInitialized } = useAuthStore();
   
-  useEffect(() => {
-    initialize();
-  }, []);
-
-  if (loading) return <div className="page-loader"><div className="spinner" /></div>;
+  if (!isInitialized) return <div className="page-loader"><div className="spinner" /></div>;
   if (!isAdmin) return <Navigate to="/admin/login" replace />;
   
   return children;
@@ -49,8 +45,10 @@ function PageLoader() {
 
 export default function App() {
   const { language } = useLanguageStore();
+  const { initialize } = useAuthStore();
 
   useEffect(() => {
+    initialize();
     initializeExchangeRate();
     // Re-apply language attributes on start
     document.documentElement.lang = language;

@@ -25,7 +25,7 @@ const useCartStore = create((set, get) => ({
   closeCart: () => set({ isCartOpen: false }),
   toggleCart: () => set((s) => ({ isCartOpen: !s.isCartOpen })),
 
-  addItem: (product) => {
+  addItem: (product, replace = false) => {
     const items = get().items;
     const existingIndex = items.findIndex(
       (item) => item.variantId === product.variantId
@@ -35,7 +35,15 @@ const useCartStore = create((set, get) => ({
     if (existingIndex >= 0) {
       newItems = items.map((item, i) =>
         i === existingIndex
-          ? { ...item, quantity: item.quantity + (product.quantity || 1) }
+          ? { 
+              ...item, 
+              quantity: replace 
+                ? product.quantity 
+                : Math.min(
+                    item.quantity + (product.quantity || 1), 
+                    item.maxStock || Infinity
+                  ) 
+            }
           : item
       );
     } else {
@@ -58,7 +66,9 @@ const useCartStore = create((set, get) => ({
       return;
     }
     const newItems = get().items.map((item) =>
-      item.variantId === variantId ? { ...item, quantity } : item
+      item.variantId === variantId 
+        ? { ...item, quantity: Math.min(quantity, item.maxStock || Infinity) } 
+        : item
     );
     saveCart(newItems);
     set({ items: newItems });
