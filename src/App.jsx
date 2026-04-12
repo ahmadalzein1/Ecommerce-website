@@ -57,10 +57,21 @@ export default function App() {
 
   return (
     <BrowserRouter>
+      <AppContent />
+    </BrowserRouter>
+  );
+}
+
+function AppContent() {
+  const { pathname } = useLocation();
+  const isAdminPage = pathname.startsWith('/admin');
+
+  return (
+    <>
       <ScrollToTop />
-      <AnnouncementBar />
-      <Navbar />
-      <CartDrawer />
+      {!isAdminPage && <AnnouncementBar />}
+      {!isAdminPage && <Navbar />}
+      {!isAdminPage && <CartDrawer />}
 
       <Suspense fallback={<PageLoader />}>
         <Routes>
@@ -72,7 +83,7 @@ export default function App() {
           {/* Admin Routes */}
           <Route path="/admin/login" element={<AdminLoginPage />} />
           <Route 
-            path="/admin" 
+            path="/admin/*" 
             element={
               <ProtectedRoute>
                 <AdminDashboard />
@@ -82,7 +93,7 @@ export default function App() {
         </Routes>
       </Suspense>
 
-      <Footer />
-    </BrowserRouter>
+      {!isAdminPage && <Footer />}
+    </>
   );
 }

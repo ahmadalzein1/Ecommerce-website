@@ -3,52 +3,89 @@ import { useNavigate } from 'react-router-dom';
 import { 
   ShoppingBag, Users, DollarSign, Package, 
   Search, Filter, ExternalLink, LogOut,
-  ChevronRight, ArrowUpRight, TrendingUp, Clock
+  ChevronRight, ArrowUpRight, TrendingUp, Clock,
+  Menu, X, Plus, Layers, Palette, CreditCard
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { adminService } from '../lib/adminService';
 import useAuthStore from '../stores/authStore';
-import { formatPrice } from '../lib/constants';
+import useLanguageStore from '../stores/languageStore';
 
-const statusLabels = {
-  pending: 'قيد الانتظار',
-  delivering: 'قيد التوصيل',
-  paid: 'مدفوع',
-  cancelled: 'ملغى',
-  expired: 'منتهي',
-};
+// Modular Components
+import { StatCard, formatEnPrice, en } from '../components/Admin/AdminCommon';
+import { OrderManager } from '../components/Admin/OrderManager';
+import { ProductManager } from '../components/Admin/ProductManager';
+import { CategoryManager, ColorManager } from '../components/Admin/TaxonomyManager';
+import { DiscountManager } from '../components/Admin/DiscountManager';
+import { OrderIntelligenceModal } from '../components/Admin/OrderIntelligenceModal';
+import { ProductWizard } from '../components/Admin/ProductWizard';
 
 export default function AdminDashboard() {
+  const [activeTab, setActiveTab] = useState('overview'); 
   const [orders, setOrders] = useState([]);
-  const [stats, setStats] = useState({ totalOrders: 0, revenue: 0, customers: 0 });
+  const [products, setProducts] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [colors, setColors] = useState([]);
+  const [discounts, setDiscounts] = useState([]);
+  const [stats, setStats] = useState({ 
+    totalOrders: 0, 
+    revenue: 0, 
+    cost: 0, 
+    profit: 0, 
+    customers: 0 
+  });
+  
   const [loading, setLoading] = useState(true);
   const { logout, user } = useAuthStore();
+  const { language, setLanguage } = useLanguageStore();
   const navigate = useNavigate();
+  
+  // Modals & Selection
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [showProductModal, setShowProductModal] = useState(false);
   const [updatingId, setUpdatingId] = useState(null);
 
   useEffect(() => {
-    fetchData();
+    fetchAllData();
   }, []);
 
-  const fetchData = async () => {
+  const fetchAllData = async () => {
     setLoading(true);
     try {
-      // Fetch Orders
-      const { data: orderData, error: orderError } = await supabase
-        .from('orders')
-        .select('*, order_items(*)')
-        .order('created_at', { ascending: false });
+      const [orderData, productData, categoryData, colorData, discountData] = await Promise.all([
+        supabase.from('orders').select('*, order_items(*)').order('created_at', { ascending: false }),
+        adminService.fetchFullProducts(),
+        adminService.fetchCategories(),
+        adminService.fetchColors(),
+        adminService.fetchDiscountCodes().catch(() => ({ data: [] }))
+      ]);
 
-      if (orderError) throw orderError;
-      setOrders(orderData || []);
+      if (orderData.error) throw orderData.error;
+      setOrders(orderData.data || []);
+      setProducts(productData || []);
+      setCategories(categoryData || []);
+      setColors(colorData || []);
+      setDiscounts(discountData?.data || []);
 
-      // Calculate Stats
-      const totalRev = orderData?.reduce((acc, curr) => acc + curr.total_amount, 0) || 0;
-      const uniqueCustomers = new Set(orderData?.map(o => o.customer_phone)).size;
+      // Calculate Advanced Stats
+      let totalRev = 0;
+      let totalCost = 0;
+      orderData.data?.forEach(order => {
+        totalRev += order.total_amount;
+        order.order_items?.forEach(item => {
+          totalCost += (item.cost_price_at_purchase || 0) * item.quantity;
+        });
+      });
+
+      const uniqueCustomers = orderData.data ? new Set(orderData.data.map(o => o.customer_phone)).size : 0;
 
       setStats({
-        totalOrders: orderData?.length || 0,
+        totalOrders: orderData.data?.length || 0,
         revenue: totalRev,
+        cost: totalCost,
+        profit: totalRev - totalCost,
         customers: uniqueCustomers
       });
 
@@ -59,11 +96,6 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleLogout = async () => {
-    await logout();
-    navigate('/admin/login');
-  };
-
   const handleUpdateStatus = async (order, newStatus) => {
     if (!order) return;
     const oldStatus = order.status;
@@ -71,99 +103,205 @@ export default function AdminDashboard() {
 
     setUpdatingId(order.id);
     try {
-      // Define groups
       const deductedGroup = ['delivering', 'paid'];
-      const notDeductedGroup = ['pending', 'cancelled', 'expired'];
-
       const wasDeducted = deductedGroup.includes(oldStatus);
       const shouldBeDeducted = deductedGroup.includes(newStatus);
 
-      let stockError = null;
-
-      // Logic: Transitioning between groups
       if (shouldBeDeducted && !wasDeducted) {
-        // MOVING TO DEDUCTED: Deduct stock for each item
         for (const item of order.order_items) {
-          const { error: err } = await supabase.rpc('decrement_stock', {
-            variant_id: item.product_variant_id,
-            qty: item.quantity
-          });
-          if (err) stockError = err;
+          await supabase.rpc('decrement_stock', { variant_id: item.product_variant_id, qty: item.quantity });
         }
       } else if (!shouldBeDeducted && wasDeducted) {
-        // MOVING TO NOT DEDUCTED: Revert stock
         for (const item of order.order_items) {
-          // Manual fallback for incrementing since no RPC exists
-          const { data: variant } = await supabase
-            .from('product_variants')
-            .select('stock_quantity')
-            .eq('id', item.product_variant_id)
-            .single();
-
-          if (variant) {
-            await supabase
-              .from('product_variants')
-              .update({ stock_quantity: variant.stock_quantity + item.quantity })
-              .eq('id', item.product_variant_id);
-          }
+          const { data: v } = await supabase.from('product_variants').select('stock_quantity').eq('id', item.product_variant_id).single();
+          if (v) await supabase.from('product_variants').update({ stock_quantity: v.stock_quantity + item.quantity }).eq('id', item.product_variant_id);
         }
       }
 
-      // Update Order Status
-      const { error: updateError } = await supabase
-        .from('orders')
-        .update({ status: newStatus })
-        .eq('id', order.id);
-
-      if (updateError) throw updateError;
-      if (stockError) console.error('Stock error during transition:', stockError);
-
-      // Refresh data
-      await fetchData();
+      const { error } = await supabase.from('orders').update({ status: newStatus }).eq('id', order.id);
+      if (error) throw error;
+      await fetchAllData();
+      
       if (selectedOrder?.id === order.id) {
-        setSelectedOrder({ ...order, status: newStatus });
+        setSelectedOrder({ ...selectedOrder, status: newStatus });
       }
     } catch (err) {
-      console.error('Error updating status:', err);
-      alert('Failed to update status. Please check your connection.');
+      console.error(err);
     } finally {
       setUpdatingId(null);
     }
   };
 
+  const handleDeleteProduct = async (productId) => {
+    if (!window.confirm(language === 'ar' ? 'هل أنت متأكد من حذف هذا المنتج؟' : 'Are you sure?')) return;
+    try {
+      await adminService.deleteProduct(productId);
+      await fetchAllData();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/admin/login');
+  };
+
+  const renderContent = () => {
+    if (loading) return <div className="loading-state">{language === 'ar' ? 'جاري التحميل...' : 'Loading...'}</div>;
+
+    switch (activeTab) {
+      case 'overview':
+        return (
+          <div className="admin-overview">
+            <h1 className="admin-title">{language === 'ar' ? 'نظرة عامة' : 'Dashboard Overview'}</h1>
+            <div className="stats-grid">
+              <StatCard label={language === 'ar' ? 'إجمالي الطلبات' : 'Total Orders'} value={en(stats.totalOrders)} icon={ShoppingBag} colorClass="purple" />
+              <StatCard label={language === 'ar' ? 'إجمالي الإيرادات' : 'Total Revenue'} value={formatEnPrice(stats.revenue)} icon={DollarSign} colorClass="gold" />
+              <StatCard label={language === 'ar' ? 'إجمالي الأرباح' : 'Net Profit'} value={formatEnPrice(stats.profit)} icon={TrendingUp} colorClass="green" />
+              <StatCard label={language === 'ar' ? 'إجمالي المنتجات' : 'Total Products'} value={en(products.length)} icon={Package} colorClass="blue" />
+            </div>
+            <div className="admin-section">
+              <div className="section-header">
+                <h2>{language === 'ar' ? 'الطلبات الأخيرة' : 'Recent Orders'}</h2>
+                <button className="view-all" onClick={() => setActiveTab('orders')}>
+                  {language === 'ar' ? 'عرض الكل' : 'View All'} <ChevronRight size={16} />
+                </button>
+              </div>
+              <OrderManager 
+                orders={orders.slice(0, 5)} 
+                onSelectOrder={setSelectedOrder} 
+                language={language}
+              />
+            </div>
+          </div>
+        );
+      case 'orders':
+        return (
+          <div className="tab-pane">
+            <div className="tab-header-row">
+              <button className="back-to-overview" onClick={() => setActiveTab('overview')}>
+                <ChevronRight size={20} style={{ transform: language === 'ar' ? 'none' : 'rotate(180deg)' }} />
+              </button>
+              <h1 className="admin-title">{language === 'ar' ? 'إدارة الطلبات' : 'Order Management'}</h1>
+            </div>
+            <OrderManager orders={orders} onSelectOrder={setSelectedOrder} language={language} />
+          </div>
+        );
+      case 'products':
+        return (
+          <div className="tab-pane">
+            <div className="tab-header-row">
+              <button className="back-to-overview" onClick={() => setActiveTab('overview')}>
+                <ChevronRight size={20} style={{ transform: language === 'ar' ? 'none' : 'rotate(180deg)' }} />
+              </button>
+              <h1 className="admin-title">{language === 'ar' ? 'إدارة المنتجات' : 'Product Inventory'}</h1>
+              <button 
+                className="add-btn"
+                onClick={() => { setSelectedProduct(null); setShowProductModal(true); }}
+                style={{ marginInlineStart: 'auto' }}
+              >
+                <Plus size={18} /> {language === 'ar' ? 'منتج جديد' : 'New Product'}
+              </button>
+            </div>
+            <ProductManager 
+              products={products} 
+              onEdit={p => { setSelectedProduct(p); setShowProductModal(true); }}
+              onDelete={handleDeleteProduct}
+              language={language} 
+            />
+          </div>
+        );
+      case 'categories':
+        return (
+          <div className="tab-pane">
+            <div className="tab-header-row">
+              <button className="back-to-overview" onClick={() => setActiveTab('overview')}>
+                <ChevronRight size={20} style={{ transform: language === 'ar' ? 'none' : 'rotate(180deg)' }} />
+              </button>
+              <h1 className="admin-title">{language === 'ar' ? 'إدارة الفئات' : 'Categories'}</h1>
+            </div>
+            <CategoryManager categories={categories} language={language} onAdd={() => {}} onEdit={() => {}} onDelete={() => {}} />
+          </div>
+        );
+      case 'colors':
+        return (
+          <div className="tab-pane">
+            <div className="tab-header-row">
+              <button className="back-to-overview" onClick={() => setActiveTab('overview')}>
+                <ChevronRight size={20} style={{ transform: language === 'ar' ? 'none' : 'rotate(180deg)' }} />
+              </button>
+              <h1 className="admin-title">{language === 'ar' ? 'إدارة الألوان' : 'Color Palette'}</h1>
+            </div>
+            <ColorManager colors={colors} language={language} onAdd={() => {}} onDelete={() => {}} />
+          </div>
+        );
+      case 'discounts':
+        return (
+          <div className="tab-pane">
+            <div className="tab-header-row">
+              <button className="back-to-overview" onClick={() => setActiveTab('overview')}>
+                <ChevronRight size={20} style={{ transform: language === 'ar' ? 'none' : 'rotate(180deg)' }} />
+              </button>
+              <h1 className="admin-title">{language === 'ar' ? 'إدارة الخصومات' : 'Discounts'}</h1>
+            </div>
+            <DiscountManager discounts={discounts} language={language} onAdd={() => {}} onDelete={() => {}} />
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
   return (
-    <div className="admin-dashboard">
+    <div className={`admin-dashboard ${isSidebarOpen ? 'sidebar-open' : ''}`}>
+      {isSidebarOpen && <div className="sidebar-backdrop" onClick={() => setIsSidebarOpen(false)} />}
+
       {/* Sidebar */}
-      <aside className="admin-sidebar">
+      <aside className={`admin-sidebar ${isSidebarOpen ? 'open' : ''}`}>
         <div className="sidebar-header">
           <div className="admin-logo">💎 Zein Admin</div>
+          <button className="sidebar-close" onClick={() => setIsSidebarOpen(false)}>
+            <X size={20} color="white" />
+          </button>
         </div>
         
         <nav className="sidebar-nav">
-          <a href="#" className="nav-item active">
-            <TrendingUp size={18} /> نظرة عامة
-          </a>
-          <a href="#" className="nav-item">
-            <ShoppingBag size={18} /> الطلبات
-          </a>
-          <a href="#" className="nav-item">
-            <Package size={18} /> المنتجات
-          </a>
-          <a href="#" className="nav-item">
-            <Users size={18} /> العملاء
-          </a>
+          <button onClick={() => { setActiveTab('overview'); setIsSidebarOpen(false); }} className={`nav-item ${activeTab === 'overview' ? 'active' : ''}`}>
+            <TrendingUp size={18} /> <span>{language === 'ar' ? 'نظرة عامة' : 'Overview'}</span>
+          </button>
+          <button onClick={() => { setActiveTab('orders'); setIsSidebarOpen(false); }} className={`nav-item ${activeTab === 'orders' ? 'active' : ''}`}>
+            <ShoppingBag size={18} /> <span>{language === 'ar' ? 'الطلبات' : 'Orders'}</span>
+          </button>
+          <button onClick={() => { setActiveTab('products'); setIsSidebarOpen(false); }} className={`nav-item ${activeTab === 'products' ? 'active' : ''}`}>
+            <Package size={18} /> <span>{language === 'ar' ? 'المنتجات' : 'Products'}</span>
+          </button>
+          <button onClick={() => { setActiveTab('categories'); setIsSidebarOpen(false); }} className={`nav-item ${activeTab === 'categories' ? 'active' : ''}`}>
+            <Layers size={18} /> <span>{language === 'ar' ? 'الفئات' : 'Categories'}</span>
+          </button>
+          <button onClick={() => { setActiveTab('colors'); setIsSidebarOpen(false); }} className={`nav-item ${activeTab === 'colors' ? 'active' : ''}`}>
+            <Palette size={18} /> <span>{language === 'ar' ? 'الألوان' : 'Colors'}</span>
+          </button>
+          <button onClick={() => { setActiveTab('discounts'); setIsSidebarOpen(false); }} className={`nav-item ${activeTab === 'discounts' ? 'active' : ''}`}>
+            <CreditCard size={18} /> <span>{language === 'ar' ? 'الخصومات' : 'Discounts'}</span>
+          </button>
         </nav>
 
         <div className="sidebar-footer">
+          <div className="developer-credit-fixed">
+            <small>{language === 'ar' ? 'تطوير وبرمجة' : 'Developed by'}</small>
+            <div className="dev-name">Ahmad Al Zein</div>
+            <a href="mailto:zeinahmad763@gmail.com" className="dev-email-link">zeinahmad763@gmail.com</a>
+          </div>
           <div className="user-info">
             <div className="user-avatar">{user?.email?.charAt(0).toUpperCase()}</div>
             <div className="user-details">
-              <span>المدير</span>
+              <span>{language === 'ar' ? 'المدير' : 'Admin'}</span>
               <small>{user?.email}</small>
             </div>
           </div>
           <button onClick={handleLogout} className="logout-btn">
-            <LogOut size={16} /> تسجيل الخروج
+            <LogOut size={16} /> {language === 'ar' ? 'تسجيل الخروج' : 'Logout'}
           </button>
         </div>
       </aside>
@@ -171,553 +309,328 @@ export default function AdminDashboard() {
       {/* Main Content */}
       <main className="admin-main">
         <header className="admin-header">
-          <div className="header-search">
-            <Search size={18} />
-            <input type="text" placeholder="البحث عن طلبات، عملاء..." />
+          <div className="header-left">
+            <button className="menu-toggle" onClick={() => setIsSidebarOpen(true)}>
+              <div className="pro-menu-icon" />
+            </button>
           </div>
+
+          <div className="header-center">
+            <div className="header-search">
+              <Search size={18} color="#94a3b8" />
+              <input type="text" placeholder={language === 'ar' ? 'ابحث عن رقم الطلب، الاسم، أو الهاتف...' : 'Search by ID, name, or phone...'} />
+            </div>
+          </div>
+
           <div className="header-actions">
-            <button className="btn btn-outline btn-sm">تنزيل التقرير</button>
+            <div className="lang-switcher-modern">
+              <button className={language === 'en' ? 'active' : ''} onClick={() => setLanguage('en')}>EN</button>
+              <button className={language === 'ar' ? 'active' : ''} onClick={() => setLanguage('ar')}>AR</button>
+            </div>
             <div className="admin-date">
-              <Clock size={16} /> {new Date().toLocaleDateString('ar-LB')}
+              <Clock size={16} />
+              <span>{new Date().toLocaleDateString('en-US')}</span>
             </div>
           </div>
         </header>
 
         <div className="admin-content">
-          <h1 className="admin-title">نظرة عامة</h1>
-
-          {/* Stats Grid */}
-          <div className="stats-grid">
-            <div className="stat-card">
-              <div className="stat-icon purple"><ShoppingBag size={20} /></div>
-              <div className="stat-data">
-                <span className="stat-label">إجمالي الطلبات</span>
-                <h3 className="stat-value">{stats.totalOrders}</h3>
-              </div>
-              <div className="stat-trend positive">+12% <ArrowUpRight size={14} /></div>
-            </div>
-
-            <div className="stat-card">
-              <div className="stat-icon gold"><DollarSign size={20} /></div>
-              <div className="stat-data">
-                <span className="stat-label">إجمالي الإيرادات</span>
-                <h3 className="stat-value">{formatPrice(stats.revenue)}</h3>
-              </div>
-              <div className="stat-trend positive">+8% <ArrowUpRight size={14} /></div>
-            </div>
-
-            <div className="stat-card">
-              <div className="stat-icon blue"><Users size={20} /></div>
-              <div className="stat-data">
-                <span className="stat-label">العملاء النشطون</span>
-                <h3 className="stat-value">{stats.customers}</h3>
-              </div>
-              <div className="stat-trend positive">+5% <ArrowUpRight size={14} /></div>
-            </div>
-          </div>
-
-          {/* Orders Section */}
-          <section className="admin-section">
-            <div className="section-header">
-              <h2>الطلبات الأخيرة</h2>
-              <button className="view-all">عرض الكل <ChevronRight size={16} /></button>
-            </div>
-
-            <div className="admin-table-container">
-              <table className="admin-table">
-                <thead>
-                  <tr>
-                    <th>الطلب</th>
-                    <th>العميل</th>
-                    <th>التاريخ</th>
-                    <th>الإجمالي</th>
-                    <th>الحالة</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {loading ? (
-                    Array(5).fill(0).map((_, i) => (
-                      <tr key={i} className="skeleton-row">
-                        <td colSpan={6}><div className="skeleton-bar" /></td>
-                      </tr>
-                    ))
-                  ) : orders.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} style={{ textAlign: 'center', padding: '40px' }}>
-                        لا توجد طلبات بعد
-                      </td>
-                    </tr>
-                  ) : orders.map((order) => (
-                    <tr key={order.id} onClick={() => setSelectedOrder(order)} style={{ cursor: 'pointer' }}>
-                      <td>#{order.id.slice(0, 8)}</td>
-                      <td>
-                        <div className="table-user">
-                          <span className="user-name">{order.customer_name}</span>
-                          <span className="user-phone">{order.customer_phone}</span>
-                        </div>
-                      </td>
-                      <td>{new Date(order.created_at).toLocaleDateString('ar-LB')}</td>
-                      <td><strong>{formatPrice(order.total_amount)}</strong></td>
-                      <td>
-                        <span className={`status-badge ${order.status}`}>
-                          {statusLabels[order.status] || order.status}
-                        </span>
-                      </td>
-                      <td>
-                        <div className="table-action">
-                          <ChevronRight size={16} />
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
+          {renderContent()}
         </div>
       </main>
 
-      {/* Order Details Modal */}
+      {/* Modals */}
       {selectedOrder && (
-        <div className="modal-overlay" onClick={() => setSelectedOrder(null)}>
-          <div className="modal-content" onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>تفاصيل الطلب #{selectedOrder.id.slice(0, 8)}</h2>
-              <button className="close-btn" onClick={() => setSelectedOrder(null)}><LogOut size={16} /></button>
-            </div>
-            
-            <div className="modal-body">
-              <div className="order-meta">
-                <div className="meta-item">
-                  <label>العميل</label>
-                  <span>{selectedOrder.customer_name}</span>
-                </div>
-                <div className="meta-item">
-                  <label>رقم الهاتف</label>
-                  <span>{selectedOrder.customer_phone}</span>
-                </div>
-                <div className="meta-item">
-                  <label>حالة الطلب</label>
-                  <select 
-                    value={selectedOrder.status}
-                    disabled={updatingId === selectedOrder.id}
-                    onChange={(e) => handleUpdateStatus(selectedOrder, e.target.value)}
-                    className={`status-select ${selectedOrder.status}`}
-                  >
-                    {['pending', 'delivering', 'paid', 'cancelled', 'expired'].map(s => (
-                      <option key={s} value={s}>{statusLabels[s] || s}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+        <OrderIntelligenceModal 
+          order={selectedOrder} 
+          onClose={() => setSelectedOrder(null)} 
+          onUpdateStatus={handleUpdateStatus}
+          language={language}
+          updatingId={updatingId}
+        />
+      )}
 
-              <div className="order-items-list">
-                <h3>المنتجات</h3>
-                {selectedOrder.order_items?.map((item, idx) => (
-                  <div key={idx} className="order-item-row">
-                    <span>{item.quantity}x المنتج</span>
-                    <strong>{formatPrice(item.price_at_purchase * item.quantity)}</strong>
-                  </div>
-                ))}
-              </div>
-
-              <div className="order-total-summary">
-                <div className="summary-row">
-                  <span>الإجمالي</span>
-                  <strong>{formatPrice(selectedOrder.total_amount)}</strong>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+      {showProductModal && (
+        <ProductWizard 
+          product={selectedProduct}
+          categories={categories}
+          colors={colors}
+          onClose={() => setShowProductModal(false)}
+          onSuccess={() => { setShowProductModal(false); fetchAllData(); }}
+          language={language}
+        />
       )}
 
       <style dangerouslySetInnerHTML={{ __html: `
+        :root {
+          --admin-primary: #3b82f6;
+          --admin-bg: #f8fafc;
+          --admin-sidebar: #0f172a;
+          --admin-card: #ffffff;
+          --admin-border: #e2e8f0;
+          --admin-text-main: #0f172a;
+          --admin-text-sub: #64748b;
+        }
+
         .admin-dashboard {
           display: flex;
           min-height: 100vh;
-          background: #f8fafc;
-          direction: rtl;
+          background: var(--admin-bg);
+          direction: ${language === 'ar' ? 'rtl' : 'ltr'};
+          font-family: 'Inter', system-ui, -apple-system, sans-serif;
+          color: var(--admin-text-main);
+          overflow-x: hidden;
         }
 
-        /* Sidebar */
+        /* Sidebar Glassmorphism & Dark Mode */
         .admin-sidebar {
-          width: 280px;
-          background: #0f172a;
-          color: white;
-          display: flex;
-          flex-direction: column;
-          position: sticky;
-          top: 0;
-          height: 100vh;
+          width: 280px; background: var(--admin-sidebar); color: white; display: flex; flex-direction: column;
+          position: fixed; top: 0; bottom: 0; 
+          left: ${language === 'ar' ? 'auto' : '0'}; 
+          right: ${language === 'ar' ? '0' : 'auto'};
+          z-index: 100; transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+          box-shadow: 10px 0 30px rgba(0,0,0,0.1);
         }
+
+        @media (max-width: 1024px) {
+          .admin-sidebar { transform: translateX(${language === 'ar' ? '100%' : '-100%'}); }
+          .admin-sidebar.open { transform: translateX(0); }
+        }
+
         .sidebar-header {
-          padding: 32px;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+          padding: 24px; border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+          display: flex; justify-content: space-between; align-items: center;
         }
-        .admin-logo {
-          font-size: 20px;
-          font-weight: 700;
-          color: var(--color-gold);
+
+        .sidebar-close {
+          background: rgba(255,255,255,0.1); border: none; padding: 8px; border-radius: 10px;
+          cursor: pointer; display: flex; align-items: center; justify-content: center;
+          display: none;
         }
-        .sidebar-nav {
-          padding: 24px 16px;
-          flex: 1;
+
+        @media (max-width: 1024px) {
+          .sidebar-close { display: flex; }
         }
+
+        .admin-logo { 
+          font-size: 1.6rem; font-weight: 800; 
+          background: linear-gradient(135deg, #60a5fa, #3b82f6);
+          -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+          letter-spacing: -0.5px;
+        }
+        
+        .sidebar-nav { flex: 1; padding: 24px 16px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; }
+        
         .nav-item {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          padding: 12px 16px;
-          color: #94a3b8;
-          text-decoration: none;
-          border-radius: 12px;
-          transition: all 0.2s;
-          margin-bottom: 8px;
-        }
-        .nav-item:hover, .nav-item.active {
-          background: rgba(255, 255, 255, 0.1);
-          color: white;
-        }
-        .sidebar-footer {
-          padding: 24px;
-          border-top: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        .user-info {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          margin-bottom: 16px;
-        }
-        .user-avatar {
-          width: 40px;
-          height: 40px;
-          background: var(--color-gold);
-          border-radius: 10px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-weight: 700;
-        }
-        .user-details span {
-          display: block;
-          font-size: 14px;
-          font-weight: 600;
-        }
-        .user-details small {
-          color: #94a3b8;
-          font-size: 11px;
-        }
-        .logout-btn {
-          width: 100%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 8px;
-          padding: 10px;
-          background: rgba(220, 38, 38, 0.1);
-          color: #f87171;
-          border: 1px solid rgba(220, 38, 38, 0.2);
-          border-radius: 10px;
-          cursor: pointer;
-          font-size: 13px;
-        }
-
-        /* Main */
-        .admin-main {
-          flex: 1;
-          display: flex;
-          flex-direction: column;
-        }
-        .admin-header {
-          height: 72px;
-          background: white;
-          border-bottom: 1px solid #e2e8f0;
-          padding: 0 32px;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          position: sticky;
-          top: 0;
-          z-index: 10;
-        }
-        .header-search {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          background: #f1f5f9;
-          padding: 8px 16px;
-          border-radius: 12px;
-          width: 300px;
-        }
-        .header-search input {
-          background: none;
-          border: none;
-          outline: none;
-          font-size: 14px;
-          width: 100%;
-        }
-        .header-actions {
-          display: flex;
-          align-items: center;
-          gap: 24px;
-        }
-        .admin-date {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          color: #64748b;
-          font-size: 14px;
-        }
-
-        .admin-content {
-          padding: 32px;
-          max-width: 1200px;
-          margin: 0 auto;
-          width: 100%;
-        }
-        .admin-title {
-          font-size: 24px;
-          font-weight: 700;
-          margin-bottom: 32px;
-          color: #0f172a;
-        }
-
-        /* Stats */
-        .stats-grid {
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: 24px;
-          margin-bottom: 40px;
-        }
-        .stat-card {
-          background: white;
-          padding: 24px;
-          border-radius: 20px;
-          border: 1px solid #e2e8f0;
-          display: flex;
-          align-items: center;
-          gap: 16px;
+          display: flex; align-items: center; gap: 14px; padding: 12px 16px; border-radius: 14px;
+          color: #94a3b8; font-weight: 500; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          border: none; background: transparent; cursor: pointer; text-align: start; width: 100%;
           position: relative;
         }
-        .stat-icon {
-          width: 48px;
-          height: 48px;
-          border-radius: 14px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-        .stat-icon.purple { background: rgba(139, 92, 246, 0.1); color: #8b5cf6; }
-        .stat-icon.gold { background: rgba(212, 175, 55, 0.1); color: #d4af37; }
-        .stat-icon.blue { background: rgba(14, 165, 233, 0.1); color: #0ea5e9; }
-        
-        .stat-label {
-          display: block;
-          font-size: 13px;
-          color: #64748b;
-          margin-bottom: 4px;
-        }
-        .stat-value {
-          font-size: 22px;
-          font-weight: 700;
-          color: #0f172a;
-        }
-        .stat-trend {
-          position: absolute;
-          top: 24px;
-          left: 24px;
-          font-size: 12px;
-          font-weight: 600;
-          display: flex;
-          align-items: center;
-          gap: 2px;
-        }
-        .stat-trend.positive { color: #10b981; }
 
-        /* Tables */
-        .admin-section {
-          background: white;
-          border-radius: 20px;
-          border: 1px solid #e2e8f0;
-          overflow: hidden;
-        }
-        .section-header {
-          padding: 24px 32px;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          border-bottom: 1px solid #e2e8f0;
-        }
-        .section-header h2 {
-          font-size: 18px;
-          font-weight: 700;
-        }
-        .view-all {
-          background: none;
-          border: none;
-          color: var(--color-gold);
+        .nav-item:hover { background: rgba(255,255,255,0.05); color: white; transform: translateX(${language === 'ar' ? '-4px' : '4px'}); }
+        .nav-item.active { 
+          background: rgba(59, 130, 246, 0.1); color: #60a5fa; 
           font-weight: 600;
-          font-size: 14px;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          gap: 4px;
         }
-        .admin-table {
-          width: 100%;
-          border-collapse: collapse;
+        .nav-item.active::after {
+          content: ''; position: absolute; top: 12px; bottom: 12px;
+          ${language === 'ar' ? 'right: -16px' : 'left: -16px'};
+          width: 4px; background: #3b82f6; border-radius: 0 4px 4px 0;
+          box-shadow: 0 0 15px #3b82f6;
         }
-        .admin-table th {
-          text-align: right;
-          padding: 16px 32px;
-          background: #f8fafc;
-          font-size: 13px;
-          font-weight: 600;
-          color: #64748b;
-        }
-        .admin-table td {
-          padding: 16px 32px;
-          border-bottom: 1px solid #f1f5f9;
-          font-size: 14px;
-        }
-        .table-user {
-          display: flex;
-          flex-direction: column;
-        }
-        .user-name { font-weight: 600; }
-        .user-phone { font-size: 12px; color: #64748b; }
+
+        .sidebar-footer { padding: 24px; background: rgba(255,255,255,0.02); border-top: 1px solid rgba(255,255,255,0.05); }
         
+        .developer-credit-fixed { padding: 16px; background: rgba(255,255,255,0.03); border-radius: 16px; margin-bottom: 24px; border: 1px solid rgba(255,255,255,0.05); }
+        .developer-credit-fixed small { color: #64748b; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 4px; }
+        .dev-name { color: white; font-weight: 800; font-size: 0.95rem; margin-bottom: 2px; }
+        .dev-email-link { color: #3b82f6 !important; font-size: 0.72rem; text-decoration: none; display: block; opacity: 0.8; word-break: break-all; }
+        .dev-email-link:hover { text-decoration: underline; opacity: 1; }
+
+        .user-info { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+        .user-avatar { 
+          width: 44px; height: 44px; border-radius: 12px; 
+          background: linear-gradient(135deg, #3b82f6, #2563eb);
+          display: flex; align-items: center; justify-content: center; 
+          font-weight: 800; color: white; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+        }
+        .user-details span { display: block; font-weight: 600; font-size: 0.95rem; color: white; }
+        .user-details small { font-size: 0.8rem; color: #64748b; }
+
+        .logout-btn {
+          width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px;
+          padding: 12px; border-radius: 12px; background: rgba(239, 68, 68, 0.08); color: #f87171;
+          border: 1px solid rgba(239, 68, 68, 0.2); font-weight: 600; cursor: pointer; transition: all 0.3s;
+        }
+        .logout-btn:hover { background: #ef4444; color: white; border-color: #ef4444; transform: translateY(-2px); }
+
+        /* Main Content Layout */
+        .admin-main { 
+          flex: 1; display: flex; flex-direction: column; min-height: 100vh; 
+          margin-${language === 'ar' ? 'right' : 'left'}: 280px; 
+          max-width: calc(100vw - 280px);
+          overflow-x: hidden;
+        }
+        @media (max-width: 1024px) { 
+          .admin-main { margin: 0; max-width: 100vw; } 
+        }
+
+        .admin-header {
+          height: 80px; background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(20px);
+          border-bottom: 1px solid var(--admin-border); padding: 0 40px;
+          display: flex; align-items: center; justify-content: space-between; 
+          position: sticky; top: 0; z-index: 90; gap: 24px;
+        }
+
+        .header-left { display: flex; align-items: center; gap: 16px; }
+        .header-title-context { font-weight: 700; color: #64748b; font-size: 0.9rem; }
+        .header-center { flex: 1; display: flex; justify-content: center; max-width: 600px; }
+        
+        .header-search {
+          display: flex; align-items: center; gap: 12px; background: #f1f5f9;
+          padding: 10px 18px; border-radius: 14px; border: 1px solid transparent; 
+          width: 100%; transition: all 0.2s;
+        }
+        .header-search:focus-within { border-color: #3b82f6; background: white; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.08); }
+        .header-search input { background: none; border: none; flex: 1; outline: none; font-size: 0.9rem; color: var(--admin-text-main); }
+
+        .header-actions { display: flex; align-items: center; gap: 12px; }
+        .admin-date { padding: 8px 12px; background: #f8fafc; border-radius: 12px; font-size: 0.8rem; color: #64748b; font-weight: 700; display: flex; align-items: center; gap: 8px; border: 1px solid #f1f5f9; }
+
+        .lang-switcher-modern { display: flex; background: #f1f5f9; padding: 4px; border-radius: 100px; gap: 2px; border: 1px solid #e2e8f0; }
+        .lang-switcher-modern button {
+          padding: 6px 12px; border-radius: 100px; border: none; background: transparent;
+          font-size: 0.7rem; font-weight: 800; cursor: pointer; color: #94a3b8; transition: all 0.2s;
+        }
+        .lang-switcher-modern button.active { background: white; color: #3b82f6; box-shadow: 0 2px 6px rgba(0,0,0,0.06); }
+
+        .menu-toggle {
+          display: none; width: 44px; height: 44px; border-radius: 12px;
+          background: #f1f5f9; border: none; align-items: center; justify-content: center;
+          cursor: pointer; color: #0f172a; transition: all 0.2s;
+        }
+        @media (max-width: 1024px) { 
+          .menu-toggle { display: flex; }
+          .admin-header { padding: 0 20px; }
+          .header-center { display: none; }
+        }
+        .pro-menu-icon {
+          width: 20px; height: 2px; background: currentColor; position: relative;
+        }
+        .pro-menu-icon::before, .pro-menu-icon::after {
+          content: ''; position: absolute; left: 0; width: 100%; height: 2px; background: currentColor;
+        }
+        .pro-menu-icon::before { top: -6px; width: 14px; }
+        .pro-menu-icon::after { bottom: -6px; width: 10px; }
+
+        .tab-header-row { display: flex; align-items: center; gap: 16px; margin-bottom: 32px; }
+        .back-to-overview {
+          width: 44px; height: 44px; border-radius: 14px; background: white;
+          border: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: center;
+          color: #64748b; cursor: pointer; transition: all 0.2s;
+        }
+        .back-to-overview:hover { color: #3b82f6; border-color: #3b82f6; transform: translateX(${language === 'ar' ? '4px' : '-4px'}); }
+        .dev-email-link { color: #3b82f6; font-size: 0.75rem; text-decoration: none; display: block; margin-top: 2px; opacity: 0.8; }
+        .dev-email-link:hover { text-decoration: underline; opacity: 1; }
+
+        /* New Stat Card Internal Styles */
+        .stat-card-inner { display: flex; align-items: center; gap: 20px; padding: 4px; }
+        .stat-icon-wrapper { 
+          width: 54px; height: 54px; border-radius: 16px; 
+          display: flex; align-items: center; justify-content: center;
+          flex-shrink: 0;
+        }
+        .stat-icon-wrapper.blue { background: rgba(59, 130, 246, 0.1); color: #3b82f6; }
+        .stat-icon-wrapper.purple { background: rgba(139, 92, 246, 0.1); color: #8b5cf6; }
+        .stat-icon-wrapper.gold { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
+        .stat-icon-wrapper.green { background: rgba(16, 185, 129, 0.1); color: #10b981; }
+
+        /* Responsive Stats */
+        .stats-grid { 
+          display: grid; gap: 24px; margin-bottom: 32px;
+          grid-template-columns: repeat(4, 1fr);
+        }
+        @media (max-width: 1280px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 768px) {
+          .admin-header { height: auto; padding: 12px 20px; flex-wrap: wrap; gap: 12px; }
+          .header-actions { width: 100%; justify-content: space-between; order: 3; }
+        }
+        @media (max-width: 640px) { 
+          .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; } 
+          .admin-title { font-size: 1.3rem; margin-bottom: 16px; }
+          .admin-section { padding: 16px 12px; }
+          .admin-table-container { padding: 0 4px 10px; }
+          .stat-icon-wrapper { width: 44px; height: 44px; border-radius: 12px; }
+          .stat-icon-wrapper svg { width: 18px; height: 18px; }
+          .stat-value-modern { font-size: 1.1rem; }
+          .stat-label-modern { font-size: 0.75rem; }
+          .stat-card-inner { gap: 10px; padding: 6px; }
+        }
+        @media (max-width: 480px) {
+          .stats-grid { grid-template-columns: 1fr; }
+        }
+
+        .stat-data-cluster { display: flex; flex-direction: column; gap: 4px; }
+        .stat-label-modern { color: #64748b; font-size: 0.85rem; font-weight: 600; }
+        .stat-value-group { display: flex; align-items: baseline; gap: 12px; }
+        .stat-value-modern { font-size: 1.5rem; font-weight: 800; color: #0f172a; margin: 0; }
+        .stat-trend-chip { 
+          padding: 2px 8px; border-radius: 6px; font-size: 0.7rem; font-weight: 700;
+        }
+        .stat-trend-chip.up { background: rgba(16, 185, 129, 0.1); color: #10b981; }
+        .stat-trend-chip.down { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
+
+        /* Premium Tables */
+        .admin-table-container { overflow-x: auto; padding: 0 20px 20px; }
+        .admin-table { width: 100%; border-collapse: separate; border-spacing: 0 8px; }
+        .admin-table th { 
+          padding: 16px 20px; text-align: start; font-size: 0.8rem; font-weight: 700; 
+          text-transform: uppercase; color: #94a3b8; letter-spacing: 1px;
+        }
+        .admin-table tr:not(thead tr) { 
+          background: white; transition: all 0.2s; 
+        }
+        .admin-table tr:not(thead tr):hover { 
+          transform: scale(1.005); box-shadow: 0 4px 12px rgba(0,0,0,0.05); 
+          z-index: 10; position: relative;
+        }
+        .admin-table td { 
+          padding: 20px; vertical-align: middle; 
+          border-top: 1px solid #f8fafc; border-bottom: 1px solid #f8fafc;
+        }
+        .admin-table td:first-child { border-${language === 'ar' ? 'right' : 'left'}: 1px solid #f8fafc; border-radius: ${language === 'ar' ? '0 16px 16px 0' : '16px 0 0 16px'}; }
+        .admin-table td:last-child { border-${language === 'ar' ? 'left' : 'right'}: 1px solid #f8fafc; border-radius: ${language === 'ar' ? '16px 0 0 16px' : '0 16px 16px 0'}; }
+
+        .order-id { font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: #3b82f6; background: rgba(59, 130, 246, 0.05); padding: 4px 8px; border-radius: 6px; font-weight: 600; }
+        .table-user { display: flex; flex-direction: column; gap: 2px; }
+        .user-name { font-weight: 700; color: #0f172a; font-size: 0.95rem; }
+        .user-phone { color: #64748b; font-size: 0.8rem; font-weight: 500; }
+
+        .profit-text { font-family: 'JetBrains Mono', monospace; }
+
+        /* Status Badges */
         .status-badge {
-          padding: 4px 12px;
-          border-radius: 20px;
-          font-size: 12px;
-          font-weight: 600;
+          display: inline-flex; align-items: center; gap: 6px;
+          padding: 6px 14px; border-radius: 10px; font-size: 0.75rem; font-weight: 700;
+          text-transform: capitalize;
         }
-        .status-badge.pending { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
-        
-        .table-action {
-          width: 32px;
-          height: 32px;
-          border-radius: 8px;
-          border: 1px solid #e2e8f0;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: #64748b;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-        .table-action:hover {
-          background: #f1f5f9;
-          color: #0f172a;
-        }
+        .status-badge.pending { background: rgba(245, 158, 11, 0.1); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.2); }
+        .status-badge.delivering { background: rgba(59, 130, 246, 0.1); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.2); }
+        .status-badge.paid { background: rgba(16, 185, 129, 0.1); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.2); }
+        .status-badge.cancelled { background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.2); }
+        .status-badge.expired { background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0; }
 
-        .skeleton-bar {
-          height: 20px;
-          background: #f1f5f9;
-          border-radius: 4px;
-          width: 100%;
-          animation: pulse 1.5s infinite;
-        }
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.5; }
-        }
+        .table-action { color: #cbd5e1; transition: color 0.2s; }
+        tr:hover .table-action { color: #3b82f6; }
 
-        /* Modal Styles */
-        .modal-overlay {
-          position: fixed;
-          inset: 0;
-          background: rgba(0,0,0,0.5);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          z-index: 1000;
-          backdrop-filter: blur(4px);
-        }
-        .modal-content {
-          background: white;
-          width: 100%;
-          max-width: 500px;
-          border-radius: 24px;
-          overflow: hidden;
-          box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
-          animation: modalIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-        }
-        @keyframes modalIn {
-          from { transform: scale(0.9); opacity: 0; }
-          to { transform: scale(1); opacity: 1; }
-        }
-        .modal-header {
-          padding: 24px;
-          border-bottom: 1px solid #f1f5f9;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-        }
-        .modal-body { padding: 32px; }
-        .order-meta {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 24px;
-          margin-bottom: 32px;
-        }
-        .meta-item label {
-          display: block;
-          font-size: 12px;
-          color: #64748b;
-          margin-bottom: 4px;
-        }
-        .order-items-list h3 {
-          font-size: 14px;
-          margin-bottom: 16px;
-          color: #0f172a;
-        }
-        .order-item-row {
-          display: flex;
-          justify-content: space-between;
-          padding: 12px 0;
-          border-bottom: 1px solid #f1f5f9;
-          font-size: 14px;
-        }
-        .order-total-summary {
-          margin-top: 24px;
-          padding-top: 24px;
-          border-top: 2px solid #f1f5f9;
-        }
-        .summary-row {
-          display: flex;
-          justify-content: space-between;
-          font-size: 18px;
-          font-weight: 700;
-        }
-        .status-select {
-          width: 100%;
-          padding: 8px 12px;
-          border-radius: 10px;
-          font-weight: 600;
-          font-size: 13px;
-          border: 1px solid #e2e8f0;
-          cursor: pointer;
-        }
-        .status-select.pending { color: #f59e0b; background: rgba(245, 158, 11, 0.1); }
-        .status-select.delivering { color: #8b5cf6; background: rgba(139, 92, 246, 0.1); }
-        .status-select.paid { color: #10b981; background: rgba(16, 185, 129, 0.1); }
-        .status-select.cancelled, .status-select.expired { color: #ef4444; background: rgba(239, 68, 68, 0.1); }
-        
-        .close-btn {
-          width: 32px;
-          height: 32px;
-          border-radius: 8px;
-          border: none;
-          background: #f1f5f9;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
+        @keyframes fadeInUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        /* Custom Scrollbar */
+        * { scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
       ` }} />
     </div>
   );
