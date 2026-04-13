@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
+import { errorService } from '../lib/errorService';
+import useLanguageStore from './languageStore';
 
 const loadCart = () => {
   try {
@@ -80,45 +82,67 @@ const useCartStore = create((set, get) => ({
   },
 
   applyDiscount: async (code) => {
+    const lang = useLanguageStore.getState().language;
+    const isAR = lang === 'ar';
+
+    if (!errorService.isOnline()) {
+      set({ 
+        discountLoading: false, 
+        discountError: isAR ? 'لا يوجد اتصال بالإنترنت' : 'No internet connection' 
+      });
+      return false;
+    }
+
     set({ discountLoading: true, discountError: null });
 
-    const { data, error } = await supabase
-      .from('discount_codes')
-      .select('*')
-      .eq('code', code.trim().toUpperCase())
-      .eq('is_active', true)
-      .single();
+    try {
+      const fetchDiscount = async () => {
+        const { data, error } = await supabase
+          .from('discount_codes')
+          .select('*')
+          .eq('code', code.trim().toUpperCase())
+          .eq('is_active', true)
+          .single();
 
-    if (error || !data) {
-      set({ discountLoading: false, discountError: 'Invalid discount code' });
-      return false;
-    }
+        if (error) throw error;
+        return data;
+      };
 
-    const now = new Date();
-    if (data.valid_from && new Date(data.valid_from) > now) {
-      set({ discountLoading: false, discountError: 'This code is not yet active' });
-      return false;
-    }
-    if (data.valid_until && new Date(data.valid_until) < now) {
-      set({ discountLoading: false, discountError: 'This code has expired' });
-      return false;
-    }
-    if (data.max_uses && data.times_used >= data.max_uses) {
-      set({ discountLoading: false, discountError: 'This code has reached its usage limit' });
-      return false;
-    }
+      const data = await errorService.withTimeout(fetchDiscount(), 8000);
 
-    set({
-      discount: {
-        id: data.id,
-        code: data.code,
-        type: data.discount_type,
-        value: Number(data.discount_value),
-      },
-      discountLoading: false,
-      discountError: null,
-    });
-    return true;
+      if (!data) {
+        throw new Error('invalid_discount');
+      }
+
+      const now = new Date();
+      if (data.valid_from && new Date(data.valid_from) > now) {
+        throw new Error('discount_not_active');
+      }
+      if (data.valid_until && new Date(data.valid_until) < now) {
+        throw new Error('discount_expired');
+      }
+      if (data.max_uses && data.times_used >= data.max_uses) {
+        throw new Error('discount_limit_reached');
+      }
+
+      set({
+        discount: {
+          id: data.id,
+          code: data.code,
+          type: data.discount_type,
+          value: Number(data.discount_value),
+        },
+        discountLoading: false,
+        discountError: null,
+      });
+      return true;
+    } catch (err) {
+      set({ 
+        discountLoading: false, 
+        discountError: errorService.translate(err, lang)
+      });
+      return false;
+    }
   },
 
   removeDiscount: () => set({ discount: null, discountError: null }),

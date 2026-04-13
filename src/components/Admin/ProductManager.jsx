@@ -2,7 +2,7 @@ import React from 'react';
 import { Edit3, Trash2, Image as ImageIcon, Search, Plus } from 'lucide-react';
 import { formatEnPrice, en } from './AdminCommon';
 
-export const ProductManager = ({ products, language, onEditProduct, onAddProduct }) => {
+export const ProductManager = ({ products, language, onEdit, onDelete }) => {
   return (
     <div className="admin-table-container">
       <table className="admin-table">
@@ -21,7 +21,7 @@ export const ProductManager = ({ products, language, onEditProduct, onAddProduct
             const totalStock = product.product_variants?.reduce((sum, v) => sum + v.stock_quantity, 0) || 0;
             return (
               <tr key={product.id}>
-                <td>
+                <td data-label={language === 'ar' ? 'المنتج' : 'Product'}>
                   <div className="product-media-cell">
                     <div className="product-img-wrapper">
                       {product.base_image_url ? (
@@ -40,13 +40,13 @@ export const ProductManager = ({ products, language, onEditProduct, onAddProduct
                     </div>
                   </div>
                 </td>
-                <td>
+                <td data-label={language === 'ar' ? 'الفئة' : 'Category'}>
                   <span className="category-pill">
                     {language === 'ar' ? (product.categories?.name_ar || '-') : (product.categories?.name_en || '-')}
                   </span>
                 </td>
-                <td><span className="price-main">{formatEnPrice(baseVariant?.base_price || 0)}</span></td>
-                <td>
+                <td data-label={language === 'ar' ? 'السعر' : 'Price'}><span className="price-main">{formatEnPrice(baseVariant?.base_price || 0)}</span></td>
+                <td data-label={language === 'ar' ? 'المخزون' : 'Stock'}>
                   <div className={`stock-indicator ${totalStock > 0 ? 'active' : 'empty'}`}>
                     <span className="indicator-bar" style={{ width: totalStock > 0 ? '100%' : '0%' }}></span>
                     <span className="indicator-label">
@@ -56,8 +56,8 @@ export const ProductManager = ({ products, language, onEditProduct, onAddProduct
                 </td>
                 <td>
                   <div className="product-actions">
-                    <button className="action-icn-btn" onClick={() => onEditProduct(product)}><Edit3 size={16} /></button>
-                    <button className="action-icn-btn danger"><Trash2 size={16} /></button>
+                    <button className="action-icn-btn" onClick={() => onEdit(product)}><Edit3 size={16} /></button>
+                    <button className="action-icn-btn danger" onClick={() => onDelete(product.id)}><Trash2 size={16} /></button>
                   </div>
                 </td>
               </tr>
@@ -91,7 +91,6 @@ export const ProductManager = ({ products, language, onEditProduct, onAddProduct
         }
         .stock-indicator.active { color: #10b981; }
         .stock-indicator.empty { color: #ef4444; }
-        .indicator-bar { background: currentColor; opacity: 0.2; }
         .indicator-label { font-size: 0.75rem; font-weight: 700; }
 
         .product-actions { display: flex; gap: 8px; justify-content: flex-end; }
@@ -101,6 +100,15 @@ export const ProductManager = ({ products, language, onEditProduct, onAddProduct
         }
         .action-icn-btn:hover { color: #3b82f6; border-color: #3b82f6; background: rgba(59, 130, 246, 0.05); }
         .action-icn-btn.danger:hover { color: #ef4444; border-color: #ef4444; background: rgba(239, 68, 68, 0.05); }
+
+        @media (max-width: 768px) {
+          .product-media-cell { width: 100%; }
+          .product-img-wrapper { width: 44px; height: 44px; }
+          .product-info-stack { flex: 1; }
+          .category-pill { font-size: 0.7rem; }
+          .stock-indicator { max-width: none; flex-direction: row; align-items: center; justify-content: flex-end; }
+          .indicator-bar { display: none; }
+        }
       ` }} />
     </div>
   );

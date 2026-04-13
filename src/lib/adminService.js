@@ -1,8 +1,13 @@
 import { supabase } from './supabase';
+import { errorService } from './errorService';
 
 const BUCKET_NAME = 'images';
 
 export const adminService = {
+  // --- UTILS ---
+  handleError(error, language = 'en') {
+    return errorService.translate(error, language);
+  },
   // --- STORAGE ---
   async uploadImage(file) {
     if (!file) return null;
@@ -77,9 +82,10 @@ export const adminService = {
       };
     });
 
-    const { error: vError } = await supabase
+    const { data: finalVariants, error: vError } = await supabase
       .from('product_variants')
-      .insert(variantsToInsert);
+      .insert(variantsToInsert)
+      .select();
 
     if (vError) throw vError;
 
@@ -96,6 +102,35 @@ export const adminService = {
     return data;
   },
 
+  async createCategory(categoryData) {
+    const { data, error } = await supabase
+      .from('categories')
+      .insert([categoryData])
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  async updateCategory(id, categoryData) {
+    const { data, error } = await supabase
+      .from('categories')
+      .update(categoryData)
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  async deleteCategory(id) {
+    const { error } = await supabase
+      .from('categories')
+      .delete()
+      .eq('id', id);
+    if (error) throw error;
+  },
+
   // --- COLORS ---
   async fetchColors() {
     const { data, error } = await supabase
@@ -106,14 +141,95 @@ export const adminService = {
     return data;
   },
 
+  async createColor(colorData) {
+    // Case-insensitive uniqueness check
+    const { data: existing } = await supabase
+      .from('colors')
+      .select('id')
+      .or(`name_ar.ilike."${colorData.name_ar}",name_en.ilike."${colorData.name_en}"`)
+      .limit(1);
+
+    if (existing && existing.length > 0) {
+      throw { code: '23505', message: 'Duplicate name' };
+    }
+
+    const { data, error } = await supabase
+      .from('colors')
+      .insert([colorData])
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  async updateColor(id, colorData) {
+    // Case-insensitive uniqueness check (excluding current record)
+    const { data: existing } = await supabase
+      .from('colors')
+      .select('id')
+      .or(`name_ar.ilike."${colorData.name_ar}",name_en.ilike."${colorData.name_en}"`)
+      .neq('id', id)
+      .limit(1);
+
+    if (existing && existing.length > 0) {
+      throw { code: '23505', message: 'Duplicate name' };
+    }
+
+    const { data, error } = await supabase
+      .from('colors')
+      .update(colorData)
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  async deleteColor(id) {
+    const { error } = await supabase
+      .from('colors')
+      .delete()
+      .eq('id', id);
+    if (error) throw error;
+  },
+
   // --- DISCOUNT CODES ---
   async fetchDiscountCodes() {
     const { data, error } = await supabase
       .from('discount_codes')
       .select('*')
       .order('created_at', { ascending: false });
-    if (error) return { data: [] }; // Handle missing table gracefully
+    if (error) return { data: [] };
     return { data: data || [] };
+  },
+
+  async createDiscountCode(discountData) {
+    const { data, error } = await supabase
+      .from('discount_codes')
+      .insert([discountData])
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  async updateDiscountCode(id, discountData) {
+    const { data, error } = await supabase
+      .from('discount_codes')
+      .update(discountData)
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  async deleteDiscountCode(id) {
+    const { error } = await supabase
+      .from('discount_codes')
+      .delete()
+      .eq('id', id);
+    if (error) throw error;
   },
 
   async deleteProduct(productId) {
@@ -122,5 +238,6 @@ export const adminService = {
       .delete()
       .eq('id', productId);
     if (error) throw error;
-  }
+  },
+
 };

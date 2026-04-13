@@ -8,85 +8,153 @@ export const OrderIntelligenceModal = ({ order, isOpen, onClose, onUpdateStatus,
   const totalNetProfit = (order.order_items || []).reduce((acc, item) => 
     acc + ((item.price_at_purchase - (item.cost_price_at_purchase || 0)) * item.quantity), 0);
 
+  const formatDate = (dateStr) => {
+    return new Intl.DateTimeFormat(language === 'ar' ? 'ar-EG' : 'en-US', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(new Date(dateStr));
+  };
+
   return (
-    <div className="modal-overlay" onClick={onClose} style={{
-      position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px'
-    }}>
-      <div className="modal-content large" onClick={e => e.stopPropagation()} style={{
-        background: 'white', width: '100%', maxWidth: '800px', borderRadius: '28px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 40px 100px -20px rgba(0,0,0,0.3)'
-      }}>
-        <div className="modal-header" style={{ padding: '24px 32px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div className="header-title-group">
-            <h2 style={{ fontSize: '18px', fontWeight: '800', color: '#0f172a' }}>{language === 'ar' ? 'تفاصيل الطلب' : 'Order Intelligence'}</h2>
-            <code className="order-id" style={{ fontSize: '12px', background: '#f1f5f9', padding: '4px 8px', borderRadius: '6px', color: '#64748b' }}>#{order.id.toUpperCase()}</code>
+    <div className="admin-modal-overlay" onClick={onClose}>
+      <div className="admin-modal-card large" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <div className="modal-title-area">
+            <div className="modal-icon-bg">
+              <Package size={24} />
+            </div>
+            <div>
+              <h3>{language === 'ar' ? 'تفاصيل الطلب' : 'Order Intelligence'}</h3>
+              <code className="order-id-badge">#{order.id.slice(0, 8).toUpperCase()}</code>
+            </div>
           </div>
-          <button className="close-btn" onClick={onClose} style={{ background: '#f1f5f9', border: 'none', width: '36px', height: '36px', borderRadius: '10px', color: '#64748b', cursor: 'pointer' }}><X size={20} /></button>
+          <button className="close-modal-btn" onClick={onClose}><X size={20} /></button>
         </div>
         
-        <div className="modal-body scrollable" style={{ padding: '32px', overflowY: 'auto' }}>
-          <div className="order-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '32px' }}>
-            
-            <div className="order-info-card">
-              <h3 style={{ fontSize: '13px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#94a3b8', marginBottom: '20px' }}>{language === 'ar' ? 'معلومات العميل' : 'Customer Info'}</h3>
-              <div className="info-row" style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px', color: '#1e293b', fontWeight: '500' }}>
-                <Users size={16} /> <span>{order.customer_name}</span>
+        <div className="modal-body">
+          <div className="timestamp-section">
+            <BarChart2 size={16} />
+            <span>{language === 'ar' ? 'تم إنشاء الطلب في:' : 'Created on:'} <strong>{formatDate(order.created_at)}</strong></span>
+          </div>
+
+          <div className="intelligence-grid">
+            <div className="intel-column">
+              <div className="section-head">
+                <Users size={16} />
+                <span>{language === 'ar' ? 'معلومات العميل' : 'Customer Profile'}</span>
               </div>
-              <div className="info-row" style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px', color: '#1e293b', fontWeight: '500' }}>
-                <Mail size={16} /> <span style={{ fontFamily: 'JetBrains Mono' }}>{order.customer_phone}</span>
-              </div>
-              <div className="status-selector" style={{ padding: '20px', background: '#f8fafc', borderRadius: '16px' }}>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '8px' }}>{language === 'ar' ? 'حالة الطلب الحالي' : 'Live Status'}</label>
-                <select 
-                  value={order.status}
-                  disabled={updatingId === order.id}
-                  onChange={(e) => onUpdateStatus(order, e.target.value)}
-                  className={`status-select ${order.status}`}
-                  style={{ width: '100%', padding: '10px', borderRadius: '10px', fontWeight: '700', border: '2px solid transparent' }}
-                >
-                  {Object.keys(statusLabels).map(s => (
-                    <option key={s} value={s}>{language === 'ar' ? statusLabels[s] : (s.charAt(0).toUpperCase() + s.slice(1))}</option>
-                  ))}
-                </select>
+              <div className="customer-card">
+                <div className="cust-row">
+                  <span className="cust-label">{language === 'ar' ? 'الاسم' : 'Name'}</span>
+                  <span className="cust-value">{order.customer_name}</span>
+                </div>
+                <div className="cust-row">
+                  <span className="cust-label">{language === 'ar' ? 'رقم الهاتف' : 'Phone'}</span>
+                  <span className="cust-value mono">{order.customer_phone}</span>
+                </div>
+                
+                <div className="status-update-box">
+                  <label>{language === 'ar' ? 'تحديث الحالة' : 'Status Control'}</label>
+                  <select 
+                    value={order.status}
+                    disabled={updatingId === order.id}
+                    onChange={(e) => onUpdateStatus(order, e.target.value)}
+                    className={`status-select ${order.status}`}
+                  >
+                    {Object.keys(statusLabels).map(s => (
+                      <option key={s} value={s}>{language === 'ar' ? statusLabels[s] : (s.charAt(0).toUpperCase() + s.slice(1))}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
             </div>
 
-            <div className="order-items-card">
-              <h3 style={{ fontSize: '13px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#94a3b8', marginBottom: '20px' }}>{language === 'ar' ? 'المنتجات والتكاليف' : 'Items & Economics'}</h3>
-              <div className="items-list" style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '24px' }}>
+            <div className="intel-column">
+              <div className="section-head">
+                <ShoppingBag size={16} />
+                <span>{language === 'ar' ? 'المنتجات والنتائج المالية' : 'Items & Economics'}</span>
+              </div>
+              <div className="items-mini-list">
                 {order.order_items?.map((item, idx) => {
                   const profit = (item.price_at_purchase - (item.cost_price_at_purchase || 0)) * item.quantity;
                   return (
-                    <div key={idx} className="order-item-detail" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '16px', borderBottom: '1px solid #f8fafc' }}>
-                      <div className="item-main" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <span className="item-qty" style={{ background: '#f1f5f9', width: '32px', height: '32px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: '700' }}>{item.quantity}x</span>
-                        <div className="item-names">
-                          <strong style={{ display: 'block', fontSize: '14px', color: '#0f172a' }}>{item.product_name || (language === 'ar' ? 'منتج' : 'Product')}</strong>
-                          <small style={{ color: '#64748b' }}>{item.variant_label || '-'}</small>
+                    <div key={idx} className="mini-item-row">
+                      <div className="item-main-info">
+                        <span className="qty-tag">{item.quantity}x</span>
+                        <div className="item-text">
+                          <div className="item-name">{item.product_name || (language === 'ar' ? 'منتج' : 'Product')}</div>
+                          <div className="item-var">{item.variant_label || '-'}</div>
                         </div>
                       </div>
-                      <div className="item-money" style={{ textAlign: 'right' }}>
-                        <div className="item-total" style={{ fontWeight: '700', color: '#0f172a' }}>{formatEnPrice(item.price_at_purchase * item.quantity)}</div>
-                        <div className="item-profit" style={{ fontSize: '11px', color: '#10b981', fontWeight: '600' }}>+{formatEnPrice(profit)} <small style={{ color: '#94a3b8' }}>Net</small></div>
+                      <div className="item-finance">
+                        <div className="item-gross">{formatEnPrice(item.price_at_purchase * item.quantity)}</div>
+                        <div className="item-net">+{formatEnPrice(profit)}</div>
                       </div>
                     </div>
                   );
                 })}
               </div>
 
-              <div className="order-financial-summary" style={{ padding: '20px', background: '#0f172a', borderRadius: '20px', color: 'white' }}>
-                <div className="summary-line" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px' }}>
-                  <span style={{ color: '#94a3b8' }}>{language === 'ar' ? 'الإجمالي' : 'Gross Revenue'}</span>
-                  <span style={{ fontWeight: '700' }}>{formatEnPrice(order.total_amount)}</span>
+              <div className="financial-summary-card">
+                <div className="sum-line">
+                  <span>{language === 'ar' ? 'الإجمالي العام' : 'Gross Revenue'}</span>
+                  <span>{formatEnPrice(order.total_amount)}</span>
                 </div>
-                <div className="summary-line profit" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '18px', fontWeight: '800' }}>
+                <div className="sum-line total">
                   <span>{language === 'ar' ? 'صافي الربح' : 'Total Net Profit'}</span>
-                  <span style={{ color: '#fbbf24' }}>{formatEnPrice(totalNetProfit)}</span>
+                  <span className="profit-value">{formatEnPrice(totalNetProfit)}</span>
                 </div>
               </div>
             </div>
           </div>
         </div>
       </div>
+
+      <style dangerouslySetInnerHTML={{ __html: `
+        .order-id-badge { font-size: 11px; background: #f1f5f9; padding: 2px 6px; border-radius: 4px; color: #64748b; font-family: 'JetBrains Mono'; margin-top: 4px; display: inline-block; }
+        .timestamp-section { display: flex; align-items: center; gap: 8px; padding: 12px 16px; background: rgba(59, 130, 246, 0.05); border-radius: 12px; margin-bottom: 24px; font-size: 0.85rem; color: #3b82f6; }
+        .timestamp-section strong { color: #1e3a8a; }
+
+        .intelligence-grid { display: grid; grid-template-columns: 1.2fr 1.8fr; gap: 32px; }
+        @media (max-width: 768px) { .intelligence-grid { grid-template-columns: 1fr; gap: 24px; } }
+
+        .section-head { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; color: #64748b; font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+        .customer-card { background: #f8fafc; border-radius: 20px; padding: 20px; }
+        .cust-row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #f1f5f9; }
+        .cust-label { color: #94a3b8; font-size: 0.85rem; }
+        .cust-value { color: #0f172a; font-weight: 700; }
+        .cust-value.mono { font-family: 'JetBrains Mono'; }
+
+        .status-update-box { margin-top: 24px; padding-top: 20px; border-top: 2px dashed #e2e8f0; }
+        .status-update-box label { display: block; font-size: 0.75rem; font-weight: 800; color: #64748b; margin-bottom: 12px; }
+
+        .items-mini-list { display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; }
+        .mini-item-row { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: white; border: 1px solid #f1f5f9; border-radius: 14px; }
+        .item-main-info { display: flex; align-items: center; gap: 12px; }
+        .qty-tag { width: 32px; height: 32px; background: #f1f5f9; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.75rem; color: #0f172a; }
+        .item-name { font-size: 0.9rem; font-weight: 700; color: #0f172a; }
+        .item-var { font-size: 0.75rem; color: #94a3b8; }
+        .item-finance { text-align: right; }
+        .item-gross { font-weight: 800; font-size: 0.9rem; color: #0f172a; }
+        .item-net { font-size: 0.75rem; color: #10b981; font-weight: 700; }
+
+        .financial-summary-card { padding: 20px; background: #0f172a; border-radius: 20px; color: white; }
+        .sum-line { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.85rem; color: #94a3b8; }
+        .sum-line.total { margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.1); font-size: 1.1rem; font-weight: 800; color: #fff; }
+        .profit-value { color: #fbbf24; }
+
+        @media (max-width: 640px) {
+          .admin-modal-card.large { max-width: none; }
+          .modal-body { padding: 20px; }
+          .intelligence-grid { gap: 40px; }
+          .mini-item-row { gap: 8px; }
+          .item-name { font-size: 0.85rem; }
+        }
+      ` }} />
     </div>
   );
 };

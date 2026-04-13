@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { MessageCircle, ArrowLeft, ShoppingBag, Tag, X, User, Phone, Minus, Plus, Trash2 } from 'lucide-react';
 import useCartStore from '../stores/cartStore';
 import { supabase } from '../lib/supabase';
+import { errorService } from '../lib/errorService';
 import { formatPrice, generateOrderMessage, generateWhatsAppUrl } from '../lib/constants';
 import useLanguageStore from '../stores/languageStore';
 import { FlagLB, FlagTR } from '../components/UI/FlagIcons';
@@ -34,11 +35,16 @@ export default function CheckoutPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!name.trim() || !phone.trim()) {
-      setError('Please fill in your name and phone number.');
+      setError(language === 'ar' ? 'يرجى ملء اسمك ورقم هاتفك.' : 'Please fill in your name and phone number.');
       return;
     }
     if (items.length === 0) {
-      setError('Your cart is empty.');
+      setError(language === 'ar' ? 'سلة التسوق فارغة.' : 'Your cart is empty.');
+      return;
+    }
+
+    if (!errorService.isOnline()) {
+      setError(language === 'ar' ? 'فشل الاتصال: لا يوجد إنترنت' : 'Connection failed: No internet');
       return;
     }
 
@@ -46,60 +52,62 @@ export default function CheckoutPage() {
     setError(null);
 
     try {
-      // Create the order in Supabase
-      const { data: order, error: orderError } = await supabase
-        .from('orders')
-        .insert({
-          customer_name: name.trim(),
-          customer_phone: phone.trim(),
-          status: 'pending',
-          discount_code_id: discount?.id || null,
-          total_amount: total,
-        })
-        .select()
-        .single();
+      const createOrderLogic = async () => {
+        // Create the order in Supabase
+        const { data: order, error: orderError } = await supabase
+          .from('orders')
+          .insert({
+            customer_name: name.trim(),
+            customer_phone: phone.trim(),
+            status: 'pending',
+            discount_code_id: discount?.id || null,
+            total_amount: total,
+          })
+          .select()
+          .single();
 
-      if (orderError) throw orderError;
+        if (orderError) throw orderError;
 
-      // Create order items
-      const orderItems = items.map((item) => ({
-        order_id: order.id,
-        product_variant_id: item.variantId,
-        quantity: item.quantity,
-        unit_price: item.price,
-        price_at_purchase: item.price,
-        cost_price_at_purchase: item.costPrice || 0,
-        coupon_discount_amount: discount
-          ? (item.price * item.quantity * discount.value) / 100 / items.length
-          : 0,
-      }));
+        // Create order items
+        const orderItems = items.map((item) => ({
+          order_id: order.id,
+          product_variant_id: item.variantId,
+          quantity: item.quantity,
+          unit_price: item.price,
+          price_at_purchase: item.price,
+          cost_price_at_purchase: item.costPrice || 0,
+          coupon_discount_amount: discount
+            ? (item.price * item.quantity * discount.value) / 100 / items.length
+            : 0,
+        }));
 
-      const { error: itemsError } = await supabase
-        .from('order_items')
-        .insert(orderItems);
+        const { error: itemsError } = await supabase
+          .from('order_items')
+          .insert(orderItems);
 
-      if (itemsError) throw itemsError;
+        if (itemsError) throw itemsError;
 
-      // Update stock for each variant moved to Admin Confirmation
-      // (Removed logic that was here)
-
-      // Increment discount usage
-      if (discount) {
-        try {
-          const { data: currentDiscount } = await supabase
-            .from('discount_codes')
-            .select('times_used')
-            .eq('id', discount.id)
-            .single();
-            
-          await supabase
-            .from('discount_codes')
-            .update({ times_used: (currentDiscount?.times_used || 0) + 1 })
-            .eq('id', discount.id);
-        } catch (discountErr) {
-          console.warn('Could not update discount usage:', discountErr);
+        // Increment discount usage
+        if (discount) {
+          try {
+            const { data: currentDiscount } = await supabase
+              .from('discount_codes')
+              .select('times_used')
+              .eq('id', discount.id)
+              .single();
+              
+            await supabase
+              .from('discount_codes')
+              .update({ times_used: (currentDiscount?.times_used || 0) + 1 })
+              .eq('id', discount.id);
+          } catch (discountErr) {
+            console.warn('Could not update discount usage:', discountErr);
+          }
         }
-      }
+      };
+
+      // Wrap whole order logic in 15s timeout
+      await errorService.withTimeout(createOrderLogic(), 15000);
 
       // Generate WhatsApp message
       const message = generateOrderMessage(items, name, phone, total, discount, language);
@@ -110,10 +118,9 @@ export default function CheckoutPage() {
 
       // Open WhatsApp
       window.open(whatsappUrl, '_blank');
-
+      navigate('/');
     } catch (err) {
-      console.error('Order error:', err);
-      setError('Something went wrong. Please try again or contact us on WhatsApp.');
+      setError(errorService.translate(err, language));
     } finally {
       setSubmitting(false);
     }

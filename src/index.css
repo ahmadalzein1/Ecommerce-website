@@ -1960,6 +1960,29 @@ h1, h2, h3, h4, h5, h6 {
     position: absolute;
     left: 50%;
     transform: translateX(-50%);
+    font-size: 1.1rem;
+    gap: 6px;
+    white-space: nowrap;
+    z-index: 1001;
+  }
+
+  .navbar-logo svg {
+    width: 24px;
+    height: 24px;
+  }
+
+  .navbar-actions {
+    gap: 4px;
+  }
+
+  .navbar-action-btn {
+    width: 32px;
+    height: 32px;
+  }
+
+  .lang-btn {
+    font-size: 11px !important;
+    padding: 0 4px;
   }
 
   .mobile-menu-btn {
@@ -2121,6 +2144,19 @@ h1, h2, h3, h4, h5, h6 {
 @media (max-width: 480px) {
   .hero {
     min-height: 60vh;
+  }
+
+  .navbar-logo span {
+    font-size: 0.95rem;
+  }
+
+  .navbar-logo svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .navbar-actions {
+    gap: 2px;
   }
 
   .hero-title {

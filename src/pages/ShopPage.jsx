@@ -211,8 +211,14 @@ export default function ShopPage() {
                       className="btn btn-outline btn-lg"
                       onClick={() => setPage((p) => p + 1)}
                       disabled={loading}
+                      style={{ minWidth: '160px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
                     >
-                      {loading ? t('common.loading') : t('shop.loadMore')}
+                      {loading ? (
+                        <>
+                          <div className="spinner sm" />
+                          {t('common.loading')}
+                        </>
+                      ) : t('shop.loadMore')}
                     </button>
                   </div>
                 )}

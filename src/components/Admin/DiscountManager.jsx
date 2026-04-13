@@ -1,17 +1,10 @@
 import React from 'react';
-import { Plus, Trash2, CreditCard, Tag, Calendar, BarChart3 } from 'lucide-react';
+import { Plus, Edit3, Trash2, CreditCard, Tag, Calendar, BarChart3 } from 'lucide-react';
 import { en, formatEnPrice } from './AdminCommon';
 
-export const DiscountManager = ({ discounts, language, onAdd, onDelete }) => {
+export const DiscountManager = ({ discounts, language, onAdd, onEdit, onDelete }) => {
   return (
     <div className="admin-section">
-      <div className="section-header">
-        <h2>{language === 'ar' ? 'أكواد الخصم' : 'Campaign Management'}</h2>
-        <button className="add-btn" onClick={onAdd}>
-          <Plus size={18} /> {language === 'ar' ? 'كود جديد' : 'New Campaign'}
-        </button>
-      </div>
-
       <div className="admin-table-container">
         {!discounts || discounts.length === 0 ? (
           <div className="empty-state-modern">
@@ -29,8 +22,8 @@ export const DiscountManager = ({ discounts, language, onAdd, onDelete }) => {
             <thead>
               <tr>
                 <th>{language === 'ar' ? 'الكود' : 'Coupon Code'}</th>
-                <th>{language === 'ar' ? 'النوع' : 'Type'}</th>
-                <th>{language === 'ar' ? 'القيمة' : 'Value'}</th>
+                <th>{language === 'ar' ? 'القيمة' : 'Discount'}</th>
+                <th>{language === 'ar' ? 'الحالة' : 'Status'}</th>
                 <th>{language === 'ar' ? 'الاستخدام' : 'Usage'}</th>
                 <th style={{ width: '100px' }}></th>
               </tr>
@@ -45,11 +38,15 @@ export const DiscountManager = ({ discounts, language, onAdd, onDelete }) => {
                     </div>
                   </td>
                   <td>
-                    <span className="type-badge">
-                      {code.type === 'percentage' ? (language === 'ar' ? 'نسبة مئوية' : 'Percentage') : (language === 'ar' ? 'خصم ثابت' : 'Fixed Amount')}
+                    <span className="price-main">{en(code.discount_value)}%</span>
+                  </td>
+                  <td>
+                    <span className={`status-badge ${code.is_active ? 'active' : 'inactive'}`}>
+                      {code.is_active 
+                        ? (language === 'ar' ? 'نشط' : 'Active') 
+                        : (language === 'ar' ? 'غير نشط' : 'Inactive')}
                     </span>
                   </td>
-                  <td><span className="price-main">{code.type === 'percentage' ? `${en(code.value)}%` : formatEnPrice(code.value)}</span></td>
                   <td>
                     <div className="usage-stats">
                       <BarChart3 size={14} />
@@ -58,6 +55,9 @@ export const DiscountManager = ({ discounts, language, onAdd, onDelete }) => {
                   </td>
                   <td>
                     <div className="product-actions">
+                      <button className="action-icn-btn" onClick={() => onEdit(code)}>
+                        <Edit3 size={16} />
+                      </button>
                       <button className="action-icn-btn danger" onClick={() => onDelete(code.id)}>
                         <Trash2 size={16} />
                       </button>
@@ -84,10 +84,11 @@ export const DiscountManager = ({ discounts, language, onAdd, onDelete }) => {
         .coupon-icon { color: #f59e0b; }
         .coupon-code { font-family: 'JetBrains Mono', monospace; font-weight: 800; color: #0f172a; font-size: 1rem; }
 
-        .type-badge { 
-          padding: 4px 10px; background: #f1f5f9; border-radius: 8px; 
-          font-size: 0.75rem; font-weight: 700; color: #475569;
+        .status-badge {
+          padding: 6px 12px; border-radius: 10px; font-size: 0.75rem; font-weight: 800; display: inline-flex; align-items: center;
         }
+        .status-badge.active { background: rgba(34, 197, 94, 0.1); color: #16a34a; }
+        .status-badge.inactive { background: rgba(148, 163, 184, 0.1); color: #64748b; }
 
         .usage-stats { display: flex; align-items: center; gap: 8px; color: #64748b; font-size: 0.85rem; font-weight: 600; }
       ` }} />

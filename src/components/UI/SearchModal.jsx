@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, X } from 'lucide-react';
+import { Search, X, Loader2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { formatPrice } from '../../lib/constants';
 import useLanguageStore from '../../stores/languageStore';
@@ -77,8 +77,8 @@ export default function SearchModal({ onClose }) {
 
         <div className="search-results">
           {loading && (
-            <div style={{ padding: '24px', textAlign: 'center', color: 'var(--color-text-muted)' }}>
-              <div className="spinner" style={{ margin: '0 auto' }} />
+            <div style={{ padding: '40px', textAlign: 'center', color: 'var(--color-primary)' }}>
+              <Loader2 className="animate-spin" size={32} style={{ margin: '0 auto' }} />
             </div>
           )}
 
