@@ -279,9 +279,9 @@ export default function AdminDashboard() {
         
       await errorService.withTimeout(action(), 15000);
       notify(language === 'ar' ? 'تم حفظ الفئة' : 'Category saved', 'success');
+      await fetchAllData();
       setShowCategoryModal(false);
       setSelectedItem(null);
-      await fetchCategories();
     } catch (err) {
       notify(errorService.translate(err, language), 'error');
     }
@@ -313,9 +313,9 @@ export default function AdminDashboard() {
 
       await errorService.withTimeout(action(), 15000);
       notify(language === 'ar' ? 'تم حفظ اللون' : 'Color saved', 'success');
+      await fetchAllData();
       setShowColorModal(false);
       setSelectedItem(null);
-      await fetchColors();
     } catch (err) {
       notify(errorService.translate(err, language), 'error');
     }
@@ -347,9 +347,9 @@ export default function AdminDashboard() {
 
       await errorService.withTimeout(action(), 15000);
       notify(language === 'ar' ? 'تم حفظ كود الخصم' : 'Discount code saved', 'success');
+      await fetchAllData();
       setShowDiscountModal(false);
       setSelectedItem(null);
-      await fetchDiscounts();
     } catch (err) {
       notify(errorService.translate(err, language), 'error');
     }
@@ -440,9 +440,10 @@ export default function AdminDashboard() {
           </div>
         );
       case 'products':
-        const filteredProducts = products.filter(p => 
-          (language === 'ar' ? p.name_ar : p.name_en)?.toLowerCase().includes(searchTerm.toLowerCase())
-        );
+        const filteredProducts = products.filter(p => {
+          const term = searchTerm.toLowerCase();
+          return p.name_ar?.toLowerCase().includes(term) || p.name_en?.toLowerCase().includes(term);
+        });
         return (
           <div className="tab-pane">
             <div className="premium-section-header">
@@ -475,9 +476,10 @@ export default function AdminDashboard() {
           </div>
         );
       case 'categories':
-        const filteredCategories = categories.filter(c => 
-          (language === 'ar' ? c.name_ar : c.name_en)?.toLowerCase().includes(searchTerm.toLowerCase())
-        );
+        const filteredCategories = categories.filter(c => {
+          const term = searchTerm.toLowerCase();
+          return c.name_ar?.toLowerCase().includes(term) || c.name_en?.toLowerCase().includes(term);
+        });
         return (
           <div className="tab-pane">
             <div className="premium-section-header">
@@ -508,9 +510,10 @@ export default function AdminDashboard() {
           </div>
         );
       case 'colors':
-        const filteredColors = colors.filter(c => 
-          (language === 'ar' ? c.name_ar : c.name_en)?.toLowerCase().includes(searchTerm.toLowerCase())
-        );
+        const filteredColors = colors.filter(c => {
+          const term = searchTerm.toLowerCase();
+          return c.name_ar?.toLowerCase().includes(term) || c.name_en?.toLowerCase().includes(term);
+        });
         return (
           <div className="tab-pane">
             <div className="premium-section-header">

@@ -92,7 +92,7 @@ export function CategoryModal({ category, categories, onClose, onSave, language 
           </div>
 
           <div className="modal-actions">
-            <button type="button" className="btn-secondary" onClick={onCancel} disabled={isSaving}>
+            <button type="button" className="btn-secondary" onClick={onClose} disabled={isSaving}>
               {language === 'ar' ? 'إلغاء' : 'Cancel'}
             </button>
             <button type="submit" className="btn-primary" disabled={isSaving}>
@@ -331,8 +331,6 @@ export function ColorModal({ color, onClose, onSave, language }) {
         @media (max-width: 480px) {
           .color-main-area { flex-direction: column; }
           .color-preview-block { width: 100%; height: 80px; }
-        }
-
         }
       ` }} />
     </div>
