@@ -9,69 +9,146 @@ export const ProductWizard = ({ isOpen, onClose, product, categories, colors, on
   
   // State
   const [baseInfo, setBaseInfo] = useState({
-    name_ar: '', name_en: '', description_ar: '', description_en: '', category_id: '', base_image_url: ''
+    name_ar: '', name_en: '', description_ar: '', description_en: '', category_id: '',
+    base_price: '', cost_price: ''
   });
   const [colorImages, setColorImages] = useState([]); // [{ color_id, image_url, image_file }]
   const [variants, setVariants] = useState([]); // [{ color_id, size, stock_quantity, base_price, cost_price }]
+  const [errors, setErrors] = useState({});
+  const [toast, setToast] = useState(null); // { message, type }
+
+  useEffect(() => {
+    // Cleanup Effect for Blob URLs
+    return () => {
+      colorImages.forEach(cm => {
+        if (cm.image_url?.startsWith('blob:')) {
+          URL.revokeObjectURL(cm.image_url);
+        }
+      });
+    };
+  }, []);
 
   useEffect(() => {
     if (product) {
+      // 1. Set Base Info
       setBaseInfo({
         name_ar: product.name_ar,
         name_en: product.name_en,
         description_ar: product.description_ar,
         description_en: product.description_en,
         category_id: product.category_id,
-        base_image_url: product.base_image_url
+        base_price: product.product_variants?.[0]?.base_price || '',
+        cost_price: product.product_variants?.[0]?.cost_price || ''
       });
+
+      // 2. Set Color Images
+      if (product.product_colors) {
+        setColorImages(product.product_colors.map(pc => ({
+          color_id: pc.color_id,
+          image_url: pc.image_url
+        })));
+      }
+
+      // 3. Set Variants
+      if (product.product_variants) {
+        setVariants(product.product_variants.map(v => ({
+          color_id: v.product_color_id ? product.product_colors?.find(pc => pc.id === v.product_color_id)?.color_id : null,
+          size: v.size,
+          stock_quantity: v.stock_quantity,
+          base_price: v.base_price,
+          cost_price: v.cost_price
+        })));
+      }
+    } else {
+      // Reset if no product (new product mode)
+      setBaseInfo({
+        name_ar: '', name_en: '', description_ar: '', description_en: '', category_id: '',
+        base_price: '', cost_price: ''
+      });
+      setColorImages([]);
+      setVariants([]);
+      setStep(1);
     }
-  }, [product]);
+  }, [product, colors]);
 
   if (!isOpen) return null;
 
-  const handleBaseImageUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    setLoading(true);
-    try {
-      const url = await adminService.uploadImage(file);
-      setBaseInfo({ ...baseInfo, base_image_url: url });
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const addColorMapping = (colorId) => {
     if (colorImages.find(c => c.color_id === colorId)) return;
     setColorImages([...colorImages, { color_id: colorId, image_url: '', image_file: null }]);
   };
 
-  const handleColorImageUpload = async (index, file) => {
-    setLoading(true);
-    try {
-      const url = await adminService.uploadImage(file);
-      const newMappings = [...colorImages];
-      newMappings[index].image_url = url;
-      setColorImages(newMappings);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
+  const removeColorMapping = (index) => {
+    const item = colorImages[index];
+    if (item.image_url?.startsWith('blob:')) {
+      URL.revokeObjectURL(item.image_url);
     }
+    setColorImages(colorImages.filter((_, i) => i !== index));
+  };
+
+  const handleColorImageUpload = (index, file) => {
+    if (!file) return;
+    
+    // Create local preview URL
+    const previewUrl = URL.createObjectURL(file);
+    
+    const newMappings = [...colorImages];
+    // Cleanup previous blob if exists
+    if (newMappings[index].image_url?.startsWith('blob:')) {
+      URL.revokeObjectURL(newMappings[index].image_url);
+    }
+    
+    newMappings[index].image_url = previewUrl;
+    newMappings[index].image_file = file;
+    setColorImages(newMappings);
+  };
+
+  const showToast = (message, type = 'error') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 4000);
+  };
+
+  const validateStep1 = () => {
+    const required = ['name_ar', 'name_en', 'category_id', 'base_price', 'cost_price', 'description_ar', 'description_en'];
+    const newErrors = {};
+    required.forEach(key => {
+      if (!baseInfo[key]) newErrors[key] = true;
+    });
+    setErrors(newErrors);
+    
+    if (Object.keys(newErrors).length > 0) {
+      showToast(language === 'ar' ? 'يرجى ملء جميع الحقول المطلوبة' : 'Please fill all required fields');
+      return false;
+    }
+    return true;
+  };
+
+  const validateStep2 = () => {
+    if (colorImages.length === 0) {
+      showToast(language === 'ar' ? 'يرجى إضافة لون واحد على الأقل' : 'Please add at least one color');
+      return false;
+    }
+    const missingImages = colorImages.some(c => !c.image_url);
+    if (missingImages) {
+      showToast(language === 'ar' ? 'يرجى رفع صور لكل الألوان المختارة' : 'Please upload images for all selected colors');
+      return false;
+    }
+    return true;
   };
 
   const generateVariants = () => {
+    if (!validateStep2()) return;
     const newVariants = [];
     colorImages.forEach(cm => {
       ['S', 'M', 'L', 'XL'].forEach(size => {
+        const existing = variants.find(v => v.color_id === cm.color_id && v.size === size);
         newVariants.push({
           color_id: cm.color_id,
           size,
-          stock_quantity: '',
-          base_price: '',
-          cost_price: ''
+          stock_quantity: existing ? existing.stock_quantity : 0,
+          base_price: baseInfo.base_price,
+          cost_price: baseInfo.cost_price
         });
       });
     });
@@ -81,27 +158,45 @@ export const ProductWizard = ({ isOpen, onClose, product, categories, colors, on
 
   const handleSave = async () => {
     if (!errorService.isOnline()) {
-      alert(language === 'ar' ? 'لا يوجد اتصال بالإنترنت' : 'No internet connection');
+      showToast(language === 'ar' ? 'لا يوجد اتصال بالإنترنت' : 'No internet connection');
       return;
     }
+
+    if (!validateStep1() || !validateStep2()) return;
 
     setLoading(true);
     try {
       const saveLogic = async () => {
+        // 1. Upload any new images first
+        const finalizedColorImages = await Promise.all(colorImages.map(async (cm) => {
+          if (cm.image_file) {
+            const remoteUrl = await adminService.uploadImage(cm.image_file);
+            // Cleanup blob
+            if (cm.image_url?.startsWith('blob:')) URL.revokeObjectURL(cm.image_url);
+            return { ...cm, image_url: remoteUrl, image_file: null };
+          }
+          return cm; // Already a remote URL (editing mode)
+        }));
+
         const formattedVariants = variants.map(v => ({
           ...v,
           stock_quantity: Number(v.stock_quantity) || 0,
-          base_price: Number(v.base_price) || 0,
-          cost_price: Number(v.cost_price) || 0
+          base_price: Number(baseInfo.base_price) || 0,
+          cost_price: Number(baseInfo.cost_price) || 0
         }));
-        await adminService.createFullProduct(baseInfo, formattedVariants, colorImages);
+
+        if (product) {
+          await adminService.updateFullProduct(product.id, baseInfo, formattedVariants, finalizedColorImages);
+        } else {
+          await adminService.createFullProduct(baseInfo, formattedVariants, finalizedColorImages);
+        }
       };
 
-      await errorService.withTimeout(saveLogic(), 25000); // Product creation is heavy, 25s
+      await errorService.withTimeout(saveLogic(), 60000); // 60s as we upload multiple images
       onSaved();
       onClose();
     } catch (err) {
-      alert(errorService.translate(err, language));
+      showToast(errorService.translate(err, language));
     } finally {
       setLoading(false);
     }
@@ -130,47 +225,56 @@ export const ProductWizard = ({ isOpen, onClose, product, categories, colors, on
           <button className="close-modal-btn" onClick={onClose} disabled={loading}><X size={24} /></button>
         </div>
 
-        <div className="modal-body" style={{ flex: 1, overflowY: 'auto' }}>
+        <div className="modal-body" style={{ flex: 1, overflowY: 'auto', position: 'relative' }}>
           
+          {toast && (
+            <div className={`wizard-toast ${toast.type}`}>
+               <div className="toast-icon">!</div>
+               <span>{toast.message}</span>
+            </div>
+          )}
           {step === 1 && (
             <div className="step-content animate-in">
               <div className="section-title">{language === 'ar' ? 'تفاصيل المنتج الأساسية' : 'Base Product Details'}</div>
               <div className="form-grid">
-                <div className="form-group">
+                <div className={`form-group ${errors.name_ar ? 'error' : ''}`}>
                   <label>{language === 'ar' ? 'الاسم بالعربي' : 'Name (Arabic)'}</label>
-                  <input type="text" disabled={loading} value={baseInfo.name_ar} onChange={e => setBaseInfo({...baseInfo, name_ar: e.target.value})} placeholder="قميص رجالي" />
+                  <input type="text" disabled={loading} required value={baseInfo.name_ar} onChange={e => { setBaseInfo({...baseInfo, name_ar: e.target.value}); setErrors({...errors, name_ar: false}); }} placeholder="قميص رجالي" />
                 </div>
-                <div className="form-group">
+                <div className={`form-group ${errors.name_en ? 'error' : ''}`}>
                   <label>{language === 'ar' ? 'الاسم بالإنجليزي' : 'Name (English)'}</label>
-                  <input type="text" disabled={loading} value={baseInfo.name_en} onChange={e => setBaseInfo({...baseInfo, name_en: e.target.value})} placeholder="Men's Shirt" />
+                  <input type="text" disabled={loading} required value={baseInfo.name_en} onChange={e => { setBaseInfo({...baseInfo, name_en: e.target.value}); setErrors({...errors, name_en: false}); }} placeholder="Men's Shirt" />
                 </div>
-                <div className="form-group full">
+                <div className={`form-group full ${errors.category_id ? 'error' : ''}`}>
                   <label>{language === 'ar' ? 'الفئة' : 'Category'}</label>
-                  <select disabled={loading} value={baseInfo.category_id} onChange={e => setBaseInfo({...baseInfo, category_id: e.target.value})}>
+                  <select disabled={loading} required value={baseInfo.category_id} onChange={e => { setBaseInfo({...baseInfo, category_id: e.target.value}); setErrors({...errors, category_id: false}); }}>
                     <option value="">{language === 'ar' ? 'اختر الفئة' : 'Select Category'}</option>
-                    {categories.map(c => <option key={c.id} value={c.id}>{language === 'ar' ? c.name_ar : c.name_en}</option>)}
+                    {categories.filter(c => c.parent_id).map(c => {
+                      const parent = categories.find(p => p.id === c.parent_id);
+                      const parentName = parent ? (language === 'ar' ? parent.name_ar : parent.name_en) : '';
+                      return (
+                        <option key={c.id} value={c.id}>
+                          {language === 'ar' ? c.name_ar : c.name_en} {parentName ? `(${parentName})` : ''}
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
-                <div className="form-group full">
-                  <label>{language === 'ar' ? 'صورة العرض الرئيسية' : 'Main Showcase Image'}</label>
-                  <div className="pro-upload-box">
-                    {baseInfo.base_image_url ? (
-                      <div className="uploaded-preview">
-                        <img src={baseInfo.base_image_url} alt="" />
-                        <div className="preview-overlay" onClick={() => setBaseInfo({...baseInfo, base_image_url: ''})}>
-                          <Trash2 size={24} color="white" />
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="upload-placeholder">
-                        <div className={`upload-icon-circle ${loading ? 'animate-pulse' : ''}`}>
-                          <Upload size={32} />
-                        </div>
-                        <p>{language === 'ar' ? 'انقر لرفع الصورة الرئيسية' : 'Click to upload main image'}</p>
-                        <input type="file" disabled={loading} onChange={handleBaseImageUpload} className="hidden-file-input" />
-                      </div>
-                    )}
-                  </div>
+                <div className={`form-group ${errors.base_price ? 'error' : ''}`}>
+                  <label>{language === 'ar' ? 'السعر ($)' : 'Price ($)'}</label>
+                  <input type="number" disabled={loading} required value={baseInfo.base_price} onChange={e => { setBaseInfo({...baseInfo, base_price: e.target.value}); setErrors({...errors, base_price: false}); }} placeholder="100.00" />
+                </div>
+                <div className={`form-group ${errors.cost_price ? 'error' : ''}`}>
+                  <label>{language === 'ar' ? 'التكلفة ($)' : 'Cost ($)'}</label>
+                  <input type="number" disabled={loading} required value={baseInfo.cost_price} onChange={e => { setBaseInfo({...baseInfo, cost_price: e.target.value}); setErrors({...errors, cost_price: false}); }} placeholder="50.00" />
+                </div>
+                <div className={`form-group full ${errors.description_ar ? 'error' : ''}`}>
+                  <label>{language === 'ar' ? 'الوصف بالعربي' : 'Description (Arabic)'}</label>
+                  <textarea disabled={loading} value={baseInfo.description_ar} onChange={e => { setBaseInfo({...baseInfo, description_ar: e.target.value}); setErrors({...errors, description_ar: false}); }} placeholder="..." rows={3} />
+                </div>
+                <div className={`form-group full ${errors.description_en ? 'error' : ''}`}>
+                  <label>{language === 'ar' ? 'الوصف بالإنجليزي' : 'Description (English)'}</label>
+                  <textarea disabled={loading} value={baseInfo.description_en} onChange={e => { setBaseInfo({...baseInfo, description_en: e.target.value}); setErrors({...errors, description_en: false}); }} placeholder="..." rows={3} />
                 </div>
               </div>
             </div>
@@ -199,11 +303,11 @@ export const ProductWizard = ({ isOpen, onClose, product, categories, colors, on
                           <div className="dot" style={{ background: colorDetails?.hex_code }} />
                           <strong>{language === 'ar' ? colorDetails?.name_ar : colorDetails?.name_en}</strong>
                         </div>
-                        <button disabled={loading} onClick={() => setColorImages(colorImages.filter((_, i) => i !== idx))} className="remove-card">
+                        <button disabled={loading} onClick={() => removeColorMapping(idx)} className="remove-card">
                           <Trash2 size={16} />
                         </button>
                       </div>
-                      <div className="card-upload-area">
+                      <div className={`card-upload-area ${!cm.image_url && errors.step2 ? 'error-pulse' : ''}`}>
                         {cm.image_url ? <img src={cm.image_url} alt="" /> : <ImageIcon size={24} color="#94a3b8" />}
                         <input type="file" disabled={loading} onChange={e => handleColorImageUpload(idx, e.target.files[0])} className="hidden-file-input" />
                       </div>
@@ -216,16 +320,14 @@ export const ProductWizard = ({ isOpen, onClose, product, categories, colors, on
 
           {step === 3 && (
             <div className="step-content animate-in">
-              <div className="section-title">{language === 'ar' ? 'مصفوفة المخزون والتسعير' : 'Inventory & Pricing Matrix'}</div>
+              <div className="section-title">{language === 'ar' ? 'مصفوفة المخزون' : 'Inventory Matrix'}</div>
               <div className="matrix-scroll-wrapper">
                 <table className="matrix-table">
                   <thead>
                     <tr>
                       <th>{language === 'ar' ? 'اللون' : 'Color'}</th>
                       <th>{language === 'ar' ? 'المقاس' : 'Size'}</th>
-                      <th>{language === 'ar' ? 'المخزون' : 'Stock'}</th>
-                      <th>{language === 'ar' ? 'السعر ($)' : 'Price ($)'}</th>
-                      <th>{language === 'ar' ? 'التكلفة ($)' : 'Cost ($)'}</th>
+                      <th style={{ width: '150px' }}>{language === 'ar' ? 'المخزون' : 'Stock'}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -239,18 +341,19 @@ export const ProductWizard = ({ isOpen, onClose, product, categories, colors, on
                               {language === 'ar' ? colorDetails?.name_ar : colorDetails?.name_en}
                             </div>
                           </td>
-                          <td><input type="text" disabled={loading} value={v.size} onChange={e => {
-                            const n = [...variants]; n[idx].size = e.target.value; setVariants(n);
-                          }} className="sm-matrix-input" /></td>
-                          <td><input type="number" disabled={loading} value={v.stock_quantity} onChange={e => {
-                            const n = [...variants]; n[idx].stock_quantity = parseInt(e.target.value); setVariants(n);
-                          }} className="sm-matrix-input" /></td>
-                          <td><input type="number" disabled={loading} value={v.base_price} onChange={e => {
-                            const n = [...variants]; n[idx].base_price = e.target.value; setVariants(n);
-                          }} className="sm-matrix-input" /></td>
-                          <td><input type="number" disabled={loading} value={v.cost_price} onChange={e => {
-                            const n = [...variants]; n[idx].cost_price = e.target.value; setVariants(n);
-                          }} className="sm-matrix-input" /></td>
+                          <td>
+                            <input type="text" disabled={loading} value={v.size} onChange={e => {
+                              const n = [...variants]; n[idx].size = e.target.value; setVariants(n);
+                            }} className="sm-matrix-input" />
+                          </td>
+                          <td>
+                            <div className="stock-input-group">
+                              <input type="number" disabled={loading} value={v.stock_quantity} onChange={e => {
+                                const n = [...variants]; n[idx].stock_quantity = parseInt(e.target.value) || 0; setVariants(n);
+                              }} className="sm-matrix-input" placeholder="0" />
+                              <span className="unit">{language === 'ar' ? 'قطعة' : 'pcs'}</span>
+                            </div>
+                          </td>
                         </tr>
                       );
                     })}
@@ -276,7 +379,13 @@ export const ProductWizard = ({ isOpen, onClose, product, categories, colors, on
             {step < 3 ? (
               <button 
                 disabled={loading}
-                onClick={() => step === 2 ? generateVariants() : setStep(step + 1)}
+                onClick={() => {
+                  if (step === 1) {
+                    if (validateStep1()) setStep(2);
+                  } else if (step === 2) {
+                    generateVariants();
+                  }
+                }}
                 className="btn-primary"
                 style={{ background: '#0f172a' }}
               >
@@ -296,6 +405,24 @@ export const ProductWizard = ({ isOpen, onClose, product, categories, colors, on
         </div>
 
         <style dangerouslySetInnerHTML={{ __html: `
+          .wizard-toast { 
+            position: absolute; top: 20px; left: 50%; transform: translateX(-50%); 
+            z-index: 100; background: #0f172a; color: white; padding: 12px 24px; 
+            border-radius: 12px; display: flex; align-items: center; gap: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2); animation: toastIn 0.3s ease-out;
+            font-weight: 600; font-size: 0.9rem; border: 1px solid rgba(255,255,255,0.1);
+          }
+          .wizard-toast.error { background: #ef4444; }
+          .toast-icon { width: 20px; height: 20px; background: white; color: #ef4444; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 800; }
+          
+          @keyframes toastIn { from { top: -20px; opacity: 0; } to { top: 20px; opacity: 1; } }
+
+          .form-group.error input, .form-group.error select, .form-group.error textarea { border-color: #ef4444 !important; background: #fff1f2 !important; }
+          .form-group.error label { color: #ef4444 !important; }
+          
+          .card-upload-area.error-pulse { border-color: #ef4444 !important; animation: borderPulse 1.5s infinite; }
+          @keyframes borderPulse { 0% { border-color: #ef4444; } 50% { border-color: #fee2e2; } 100% { border-color: #ef4444; } }
+
           .steps-indicator-bar { display: flex; gap: 8px; margin-top: 8px; }
           .step-dot { width: 32px; height: 4px; border-radius: 2px; background: #f1f5f9; transition: all 0.3s; }
           .step-dot.active { background: #fbbf24; width: 48px; }
@@ -344,7 +471,9 @@ export const ProductWizard = ({ isOpen, onClose, product, categories, colors, on
           .matrix-table td { padding: 12px 14px; border-bottom: 1px solid #f8fafc; }
           .matrix-color { display: flex; align-items: center; gap: 8px; font-weight: 700; color: #0f172a; }
           .matrix-color .dot { width: 8px; height: 8px; border-radius: 50%; }
-          .sm-matrix-input { width: 100%; padding: 8px 12px !important; font-size: 0.85rem !important; }
+          .stock-input-group { display: flex; align-items: center; gap: 8px; }
+          .stock-input-group .unit { font-size: 0.75rem; color: #94a3b8; font-weight: 500; min-width: 30px; }
+          .sm-matrix-input { width: 100%; padding: 8px 12px !important; font-size: 0.85rem !important; border-radius: 8px !important; }
 
           @media (max-width: 640px) {
             .form-grid { grid-template-columns: 1fr; gap: 16px; }

@@ -61,34 +61,28 @@ export const errorService = {
       return isAR ? 'ليس لديك صلاحيات كافية للقيام بهذا الإجراء' : 'You do not have sufficient permissions for this action';
     }
 
-    if (msg.toLowerCase().includes('storage')) {
-      return isAR ? 'فشل في رفع الملف. تأكد من حجمه وحاول مجدداً' : 'File upload failed. Please check the size and try again';
+    if (msg.toLowerCase().includes('storage') || msg.toLowerCase().includes('bucket')) {
+      return isAR ? 'فشل في الوصول إلى التخزين. تأكد من وجود الـ Bucket وحاول مجدداً' : 'Storage access failed. Please ensure the bucket exists and try again';
     }
 
     if (msg.toLowerCase().includes('fetch')) {
       return isAR ? 'حدث خطأ في جلب البيانات. قد يكون السيرفر مشغولاً' : 'Failed to fetch data. The server might be busy';
     }
 
+    if (msg.toLowerCase().includes('policy') || code === '42501') {
+      return isAR ? 'ليس لديك صلاحيات كافية للقيام بهذا الإجراء (RLS)' : 'Insufficient permissions (RLS policy). Please check database rules';
+    }
+
     // 4. Custom Logic Errors (e.g. from cartStore or Auth)
     if (msg.includes('Invalid login credentials')) {
       return isAR ? 'البريد الإلكتروني أو كلمة المرور غير صحيحة' : 'Invalid email or password';
     }
-    if (msg.includes('invalid_discount')) {
-      return isAR ? 'كود الخصم غير صحيح أو غير مفعل' : 'Invalid or inactive discount code';
-    }
-    if (msg.includes('discount_not_active')) {
-      return isAR ? 'هذا الكود لم يتم تفعيله بعد' : 'This code is not yet active';
-    }
-    if (msg.includes('discount_expired')) {
-      return isAR ? 'انتهت صلاحية هذا الكود' : 'This code has expired';
-    }
-    if (msg.includes('discount_limit_reached')) {
-      return isAR ? 'وصل هذا الكود للحد الأقصى للاستخدام' : 'This code has reached its usage limit';
-    }
-
-    // 5. Fallback
-    return isAR 
+    
+    // 5. Fallback with more detail if possible
+    const fallbackMsg = isAR 
       ? 'حدث خطأ غير متوقع. يرجى المحاولة لاحقاً' 
       : 'An unexpected error occurred. Please try again later';
+    
+    return msg ? `${fallbackMsg} (${msg})` : fallbackMsg;
   }
 };

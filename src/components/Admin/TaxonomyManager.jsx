@@ -37,10 +37,12 @@ export const CategoryManager = ({ categories, language, onAdd, onEdit, onDelete 
                     </span>
                   </td>
                   <td>
-                    <div className="product-actions">
-                      <button className="action-icn-btn" onClick={() => onEdit(cat)}><Edit3 size={16} /></button>
-                      <button className="action-icn-btn danger" onClick={() => onDelete(cat.id)}><Trash2 size={16} /></button>
-                    </div>
+                    {cat.parent_id && (
+                      <div className="product-actions">
+                        <button className="action-icn-btn" onClick={() => onEdit(cat)}><Edit3 size={16} /></button>
+                        <button className="action-icn-btn danger" onClick={() => onDelete(cat.id)}><Trash2 size={16} /></button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}

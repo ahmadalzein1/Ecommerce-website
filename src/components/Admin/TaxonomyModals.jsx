@@ -82,7 +82,7 @@ export function CategoryModal({ category, categories, onClose, onSave, language 
                 onChange={e => setFormData({...formData, parent_id: e.target.value || null})}
               >
                 <option value="">{language === 'ar' ? 'بدون (فئة أساسية)' : 'None (Root Category)'}</option>
-                {categories.filter(c => c.id !== category?.id).map(cat => (
+                {categories.filter(c => c.id !== category?.id && !c.parent_id).map(cat => (
                   <option key={cat.id} value={cat.id}>
                     {language === 'ar' ? cat.name_ar : cat.name_en}
                   </option>

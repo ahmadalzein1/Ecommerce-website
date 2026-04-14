@@ -688,11 +688,12 @@ export default function AdminDashboard() {
 
       {showProductModal && (
         <ProductWizard 
+          isOpen={showProductModal}
           product={selectedProduct}
           categories={categories}
           colors={colors}
           onClose={() => setShowProductModal(false)}
-          onSuccess={() => { setShowProductModal(false); fetchAllData(); }}
+          onSaved={() => { setShowProductModal(false); fetchAllData(); }}
           language={language}
         />
       )}

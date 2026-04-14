@@ -5,7 +5,7 @@ import { useProductDetail, useRelatedProducts } from '../hooks/useProductDetail'
 import useCartStore from '../stores/cartStore';
 import useLanguageStore from '../stores/languageStore';
 import ProductCard from '../components/UI/ProductCard';
-import { formatPrice, WHATSAPP_NUMBER } from '../lib/constants';
+import { formatPrice, WHATSAPP_NUMBER, sortSizes } from '../lib/constants';
 import useScrollReveal from '../hooks/useScrollReveal';
 
 export default function ProductPage() {
@@ -33,12 +33,14 @@ export default function ProductPage() {
 
   // Get available sizes for selected color
   const availableSizes = useMemo(() => {
+    let rawSizes = [];
     if (!selectedColorId) {
-      // No color selected — show all unique sizes
-      return [...new Set(variants.map((v) => v.size).filter(Boolean))];
+      rawSizes = [...new Set(variants.map((v) => v.size).filter(Boolean))];
+    } else {
+      const colorVariants = variants.filter((v) => v.product_color_id === selectedColorId);
+      rawSizes = [...new Set(colorVariants.map((v) => v.size).filter(Boolean))];
     }
-    const colorVariants = variants.filter((v) => v.product_color_id === selectedColorId);
-    return [...new Set(colorVariants.map((v) => v.size).filter(Boolean))];
+    return sortSizes(rawSizes);
   }, [selectedColorId, variants]);
 
   // Get selected variant
