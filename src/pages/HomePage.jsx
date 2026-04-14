@@ -15,11 +15,14 @@ import ProductCard from '../components/UI/ProductCard';
 import SkeletonLoader from '../components/UI/SkeletonLoader';
 import { INSTAGRAM_URL, DELIVERY_INFO, WHATSAPP_NUMBER } from '../lib/constants';
 import { FlagLB } from '../components/UI/FlagIcons';
+import useScrollReveal from '../hooks/useScrollReveal';
 
 export default function HomePage() {
   const { products, loading } = useFeaturedProducts();
   const { categories } = useCategories();
   const { t, isRTL, getLocalizedField } = useLanguageStore();
+
+  useScrollReveal([products, categories, loading]);
 
   const getCategoryBackground = (category) => {
     const nameStr = (category.name_en || category.name_ar || '').toLowerCase();
@@ -75,14 +78,14 @@ export default function HomePage() {
       {categories.length > 0 && (
         <section style={{ padding: 'var(--space-3xl) 0' }}>
           <div className="container">
-            <h2 className="section-title">{t('home.shopByCategory')}</h2>
-            <p className="section-subtitle">{t('home.findExactly')}</p>
+            <h2 className="section-title reveal reveal-fade-up">{t('home.shopByCategory')}</h2>
+            <p className="section-subtitle reveal reveal-fade-up" style={{ '--delay': '0.1s' }}>{t('home.findExactly')}</p>
             <div className="category-grid">
               {categories.map((cat, i) => (
                 <Link
                   to={`/shop?category=${cat.id}`}
                   key={cat.id}
-                  className="category-card"
+                  className={`category-card reveal reveal-zoom-in stagger-${(i % 6) + 1}`}
                   id={`category-${cat.id}`}
                 >
                   <div 
@@ -118,15 +121,17 @@ export default function HomePage() {
       {/* New Arrivals */}
       <section style={{ padding: 'var(--space-3xl) 0' }}>
         <div className="container">
-          <h2 className="section-title">{t('home.newArrivals')}</h2>
-          <p className="section-subtitle">{t('home.latestAdditions')}</p>
+          <h2 className="section-title reveal reveal-fade-up">{t('home.newArrivals')}</h2>
+          <p className="section-subtitle reveal reveal-fade-up" style={{ '--delay': '0.1s' }}>{t('home.latestAdditions')}</p>
 
           {loading ? (
             <SkeletonLoader count={4} />
           ) : (
             <div className="product-grid">
-              {products.map((product) => (
-                <ProductCard key={product.id} product={product} />
+              {products.map((product, i) => (
+                <div key={product.id} className={`reveal reveal-fade-up stagger-${(i % 4) + 1}`} style={{ width: '100%' }}>
+                  <ProductCard product={product} />
+                </div>
               ))}
             </div>
           )}
@@ -146,7 +151,7 @@ export default function HomePage() {
       <section className="trust-section">
         <div className="container">
           <div className="trust-grid">
-            <div className="trust-item">
+            <div className="trust-item reveal reveal-fade-up stagger-1">
               <div className="trust-icon">
                 <Truck size={26} />
               </div>
@@ -155,7 +160,7 @@ export default function HomePage() {
                 <div className="trust-desc">{t('home.trust.deliveryDesc')}</div>
               </div>
             </div>
-            <div className="trust-item">
+            <div className="trust-item reveal reveal-fade-up stagger-2">
               <div className="trust-icon">
                 <ShieldCheck size={26} />
               </div>
@@ -164,7 +169,7 @@ export default function HomePage() {
                 <div className="trust-desc">{t('home.trust.qualityDesc')}</div>
               </div>
             </div>
-            <div className="trust-item">
+            <div className="trust-item reveal reveal-fade-up stagger-3">
               <div className="trust-icon">
                 <MessageCircle size={26} />
               </div>
@@ -181,8 +186,8 @@ export default function HomePage() {
       {/* Instagram Section */}
       <section className="insta-section">
         <div className="container">
-          <h2 className="section-title">{t('home.instagram.follow')}</h2>
-          <p className="section-subtitle">{t('home.instagram.join')}</p>
+          <h2 className="section-title reveal reveal-fade-up">{t('home.instagram.follow')}</h2>
+          <p className="section-subtitle reveal reveal-fade-up" style={{ '--delay': '0.1s' }}>{t('home.instagram.join')}</p>
           <a
             href={INSTAGRAM_URL}
             target="_blank"

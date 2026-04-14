@@ -6,11 +6,14 @@ import useCartStore from '../stores/cartStore';
 import useLanguageStore from '../stores/languageStore';
 import ProductCard from '../components/UI/ProductCard';
 import { formatPrice, WHATSAPP_NUMBER } from '../lib/constants';
+import useScrollReveal from '../hooks/useScrollReveal';
 
 export default function ProductPage() {
   const { id } = useParams();
   const { product, loading, error } = useProductDetail(id);
   const { items, addItem, openCart } = useCartStore();
+  const { t, isRTL, getLocalizedField } = useLanguageStore();
+
   const { t, isRTL, getLocalizedField } = useLanguageStore();
 
   const [selectedColorId, setSelectedColorId] = useState(null);
@@ -23,6 +26,8 @@ export default function ProductPage() {
     product?.category_id,
     product?.id
   );
+
+  useScrollReveal([product, relatedProducts, loading]);
 
   // Derive selectable data
   const colors = product?.product_colors || [];
@@ -397,10 +402,12 @@ export default function ProductPage() {
         {/* Related Products */}
         {relatedProducts.length > 0 && (
           <section style={{ marginTop: 'var(--space-4xl)' }}>
-            <h2 className="section-title">{t('product.similarProducts')}</h2>
+            <h2 className="section-title reveal reveal-fade-up">{t('product.similarProducts')}</h2>
             <div className="product-grid">
-              {relatedProducts.map((p) => (
-                <ProductCard key={p.id} product={p} />
+              {relatedProducts.map((p, i) => (
+                <div key={p.id} className={`reveal reveal-fade-up stagger-${(i % 4) + 1}`} style={{ width: '100%' }}>
+                  <ProductCard product={p} />
+                </div>
               ))}
             </div>
           </section>

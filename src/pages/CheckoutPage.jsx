@@ -7,6 +7,7 @@ import { errorService } from '../lib/errorService';
 import { formatPrice, generateOrderMessage, generateWhatsAppUrl } from '../lib/constants';
 import useLanguageStore from '../stores/languageStore';
 import { FlagLB, FlagTR } from '../components/UI/FlagIcons';
+import useScrollReveal from '../hooks/useScrollReveal';
 
 export default function CheckoutPage() {
   const {
@@ -15,6 +16,8 @@ export default function CheckoutPage() {
     getSubtotal, getDiscountAmount, getTotal, clearCart
   } = useCartStore();
   const { t, isRTL, getLocalizedField, language } = useLanguageStore();
+
+  useScrollReveal([items]);
 
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -145,11 +148,11 @@ export default function CheckoutPage() {
   return (
     <div className="checkout-page">
       <div className="container">
-        <h1 className="section-title">{t('checkout.title')}</h1>
+        <h1 className="section-title reveal reveal-fade-up">{t('checkout.title')}</h1>
 
         <div className="checkout-grid">
           {/* Form */}
-          <div>
+          <div className="reveal reveal-fade-up" style={{ '--delay': '0.1s' }}>
             <div className="checkout-section">
               <h2>{t('checkout.yourInfo')}</h2>
               <form className="checkout-form" onSubmit={handleSubmit}>
@@ -266,7 +269,7 @@ export default function CheckoutPage() {
           </div>
 
           {/* Order Summary */}
-          <div className="checkout-section checkout-order-summary">
+          <div className="checkout-section checkout-order-summary reveal reveal-fade-up" style={{ '--delay': '0.2s' }}>
             <h2>{t('checkout.orderSummary')}</h2>
 
             {items.map((item) => (

@@ -8,6 +8,7 @@ import useFilterStore from '../stores/filterStore';
 import useLanguageStore from '../stores/languageStore';
 import ProductCard from '../components/UI/ProductCard';
 import SkeletonLoader from '../components/UI/SkeletonLoader';
+import useScrollReveal from '../hooks/useScrollReveal';
 
 export default function ShopPage() {
   const [searchParams] = useSearchParams();
@@ -50,6 +51,8 @@ export default function ShopPage() {
   }, [categoryId, categories]);
 
   const { products, loading, hasMore } = useProducts({ categoryId: activeCategoryIds, colorId, searchQuery, sortBy, page });
+
+  useScrollReveal([products, loading]);
 
   // Apply URL params on mount
   useEffect(() => {
@@ -142,8 +145,8 @@ export default function ShopPage() {
     <div className="shop-page">
       <div className="container">
         <div className="shop-header">
-          <h1 className="section-title">{t('shop.title')}</h1>
-          <p className="section-subtitle">{t('shop.subtitle')}</p>
+          <h1 className="section-title reveal reveal-fade-up">{t('shop.title')}</h1>
+          <p className="section-subtitle reveal reveal-fade-up" style={{ '--delay': '0.1s' }}>{t('shop.subtitle')}</p>
         </div>
 
         <div className="shop-layout">
@@ -200,8 +203,10 @@ export default function ShopPage() {
             ) : (
               <>
                 <div className="product-grid">
-                  {products.map((product) => (
-                    <ProductCard key={product.id} product={product} />
+                  {products.map((product, i) => (
+                    <div key={product.id} className={`reveal reveal-fade-up stagger-${(i % 4) + 1}`} style={{ width: '100%' }}>
+                      <ProductCard product={product} />
+                    </div>
                   ))}
                 </div>
 
