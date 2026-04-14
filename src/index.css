@@ -2189,10 +2189,6 @@ h1, h2, h3, h4, h5, h6 {
     font-size: var(--text-sm);
   }
 
-  .product-card-colors {
-    display: none;
-  }
-
   .category-grid {
     grid-template-columns: repeat(2, 1fr);
     gap: var(--space-sm);

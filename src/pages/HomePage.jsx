@@ -24,9 +24,9 @@ export default function HomePage() {
   const getCategoryBackground = (category) => {
     const nameStr = (category.name_en || category.name_ar || '').toLowerCase();
     
-    // Girls Fashion
-    if (nameStr.includes('girl') || nameStr.includes('بنات')) {
-      return 'https://images.unsplash.com/photo-1518831959646-742c3a14ebf7?auto=format&fit=crop&q=80&w=600';
+    // Girls or Kids Fashion
+    if (nameStr.includes('girl') || nameStr.includes('بنت') || nameStr.includes('kids') || nameStr.includes('أطفال') || nameStr.includes('اطفال')) {
+      return 'https://images.unsplash.com/photo-1622290291468-a28f7a7dc6a8?auto=format&fit=crop&q=80&w=600';
     }
     // Princess Dresses
     if (nameStr.includes('princess') || nameStr.includes('أمير')) {
@@ -96,17 +96,17 @@ export default function HomePage() {
                   <div className="category-card-name">
                     <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
                       <span>{getLocalizedField(cat, 'name')}</span>
-                      {(cat.name_en?.toLowerCase().includes('girl') || cat.name_ar?.includes('بنات')) && (
+                      {(cat.name_en?.toLowerCase().includes('girl') || 
+                        cat.name_ar?.includes('بنات') || 
+                        cat.name_ar?.includes('بنت') ||
+                        cat.name_en?.toLowerCase().includes('kids') || 
+                        cat.name_ar?.includes('أطفال') ||
+                        cat.name_ar?.includes('اطفال')) && (
                         <span style={{ fontSize: '0.65em', opacity: 0.9, fontWeight: 500 }}>
-                          {isRTL() ? '(من 1 إلى 14 سنة)' : '(1 to 14 years)'}
+                          {isRTL() ? '(من 1 إلى 14 سنة)' : '(1-14 years)'}
                         </span>
                       )}
                     </div>
-                    {cat.children?.length > 0 && (
-                      <div className="category-card-count">
-                        {cat.children.length} {isRTL() ? 'فئات فرعية' : 'Subcategories'}
-                      </div>
-                    )}
                   </div>
                 </Link>
               ))}
