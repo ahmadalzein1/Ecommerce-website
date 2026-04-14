@@ -14,8 +14,6 @@ export default function ProductPage() {
   const { items, addItem, openCart } = useCartStore();
   const { t, isRTL, getLocalizedField } = useLanguageStore();
 
-  const { t, isRTL, getLocalizedField } = useLanguageStore();
-
   const [selectedColorId, setSelectedColorId] = useState(null);
   const [selectedSize, setSelectedSize] = useState(null);
   const [quantity, setQuantity] = useState(1);
@@ -80,7 +78,7 @@ export default function ProductPage() {
       // Prioritize the first color that has at least one size in stock
       const firstInStockId = colorsInStockIds[0];
       const initialColor = colors.find(c => c.id === (firstInStockId || colors[0].id));
-      
+
       if (initialColor) {
         setSelectedColorId(initialColor.id);
         setMainImage(initialColor.image_url || product.base_image_url);
@@ -176,16 +174,16 @@ export default function ProductPage() {
   if (error || !product) {
     return (
       <div className="product-detail">
-      <div className="container">
-        <div className="empty-state">
-          <AlertCircle size={64} />
-          <h3>{t('common.error')}</h3>
-          <p>{isRTL() ? 'المنتج غير موجود' : 'Product not found'}</p>
-          <Link to="/shop" className="btn btn-outline" style={{ marginTop: '16px' }}>
-            <ArrowLeft size={16} /> {t('common.back')}
-          </Link>
+        <div className="container">
+          <div className="empty-state">
+            <AlertCircle size={64} />
+            <h3>{t('common.error')}</h3>
+            <p>{isRTL() ? 'المنتج غير موجود' : 'Product not found'}</p>
+            <Link to="/shop" className="btn btn-outline" style={{ marginTop: '16px' }}>
+              <ArrowLeft size={16} /> {t('common.back')}
+            </Link>
+          </div>
         </div>
-      </div>
       </div>
     );
   }
@@ -321,17 +319,17 @@ export default function ProductPage() {
               <div className={`product-stock ${stock === 0 ? 'out-of-stock' : stock <= 3 ? 'low-stock' : 'in-stock'}`}>
                 {stock === 0 ? (
                   <>
-                    <AlertCircle size={16} /> 
+                    <AlertCircle size={16} />
                     {t('product.outOfStock')}
                     {hasOtherColorsInStock && (
-                      <span 
+                      <span
                         onClick={() => {
                           const firstAvailableId = colorsInStockIds.find(id => id !== selectedColorId);
                           const pc = colors.find(c => c.id === firstAvailableId);
                           if (pc) handleColorSelect(pc);
                         }}
-                        style={{ 
-                          marginLeft: isRTL() ? 0 : '10px', 
+                        style={{
+                          marginLeft: isRTL() ? 0 : '10px',
                           marginRight: isRTL() ? '10px' : 0,
                           cursor: 'pointer',
                           fontSize: '0.9em',
