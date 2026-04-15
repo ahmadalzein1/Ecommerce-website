@@ -15,7 +15,7 @@ const useAuthStore = create(
       initialize: async () => {
         set({ loading: true });
         const { data: { session } } = await supabase.auth.getSession();
-        
+
         if (session) {
           const userEmail = session.user.email;
           const isUserAdmin = userEmail === ADMIN_EMAIL;
@@ -50,7 +50,7 @@ const useAuthStore = create(
         }
 
         const isUserAdmin = data.user.email === ADMIN_EMAIL;
-        
+
         if (!isUserAdmin) {
           await supabase.auth.signOut();
           set({ loading: false, isAdmin: false });

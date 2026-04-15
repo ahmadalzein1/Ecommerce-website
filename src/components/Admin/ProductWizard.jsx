@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { X, Upload, Trash2, ChevronRight, ChevronLeft, Image as ImageIcon, CheckCircle2, Plus } from 'lucide-react';
 import { adminService } from '../../lib/adminService';
 import { errorService } from '../../lib/errorService';
+import { sortSizes } from '../../lib/constants';
+
 
 export const ProductWizard = ({ isOpen, onClose, product, categories, colors, onSaved, language }) => {
   const [step, setStep] = useState(1);
@@ -139,9 +141,19 @@ export const ProductWizard = ({ isOpen, onClose, product, categories, colors, on
 
   const generateVariants = () => {
     if (!validateStep2()) return;
+
+    // Determine sizes based on parent category
+    const selectedCategory = categories.find(c => String(c.id) === String(baseInfo.category_id));
+    const parentCategory = selectedCategory ? categories.find(p => p.id === selectedCategory.parent_id) : null;
+    const parentNameEn = parentCategory?.name_en?.toLowerCase() || '';
+
+    const sizes = parentNameEn.includes('girl')
+      ? ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14']
+      : ['S', 'M', 'L', 'XL', 'XXL'];
+
     const newVariants = [];
     colorImages.forEach(cm => {
-      ['S', 'M', 'L', 'XL'].forEach(size => {
+      sizes.forEach(size => {
         const existing = variants.find(v => v.color_id === cm.color_id && v.size === size);
         newVariants.push({
           color_id: cm.color_id,
@@ -152,7 +164,14 @@ export const ProductWizard = ({ isOpen, onClose, product, categories, colors, on
         });
       });
     });
-    setVariants(newVariants);
+    // Sort variants to ensure they appear in the correct order in the matrix
+    const sortedVariants = [...newVariants].sort((a, b) => {
+      const aIndex = sizes.indexOf(a.size);
+      const bIndex = sizes.indexOf(b.size);
+      return aIndex - bIndex;
+    });
+
+    setVariants(sortedVariants);
     setStep(3);
   };
 
@@ -249,7 +268,14 @@ export const ProductWizard = ({ isOpen, onClose, product, categories, colors, on
                   <label>{language === 'ar' ? 'الفئة' : 'Category'}</label>
                   <select disabled={loading} required value={baseInfo.category_id} onChange={e => { setBaseInfo({...baseInfo, category_id: e.target.value}); setErrors({...errors, category_id: false}); }}>
                     <option value="">{language === 'ar' ? 'اختر الفئة' : 'Select Category'}</option>
-                    {categories.filter(c => c.parent_id).map(c => {
+                    {categories.filter(c => {
+                      if (!c.parent_id) return false;
+                      if (product) {
+                        const currentCategory = categories.find(cat => cat.id === product.category_id);
+                        return c.parent_id === currentCategory?.parent_id;
+                      }
+                      return true;
+                    }).map(c => {
                       const parent = categories.find(p => p.id === c.parent_id);
                       const parentName = parent ? (language === 'ar' ? parent.name_ar : parent.name_en) : '';
                       return (

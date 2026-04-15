@@ -74,6 +74,11 @@ export const generateOrderMessage = (items, customerName, customerPhone, total, 
 export const SIZE_ORDER = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', '36', '38', '40', '42', '44', '46'];
 export const sortSizes = (sizes) => {
   return [...sizes].sort((a, b) => {
+    // If both are purely numeric (e.g. girls' year sizes), sort numerically
+    const aNum = Number(a);
+    const bNum = Number(b);
+    if (!isNaN(aNum) && !isNaN(bNum)) return aNum - bNum;
+
     const indexA = SIZE_ORDER.indexOf(a.toUpperCase());
     const indexB = SIZE_ORDER.indexOf(b.toUpperCase());
     if (indexA === -1 && indexB === -1) return a.localeCompare(b);

@@ -312,6 +312,11 @@ export default function ProductPage() {
                       </button>
                     );
                   })}
+                  {availableSizes.length > 0 && !isNaN(availableSizes[0]) && (
+                    <span className="years-label">
+                      {isRTL() ? 'سنوات' : 'Years'}
+                    </span>
+                  )}
                 </div>
               </div>
             )}
