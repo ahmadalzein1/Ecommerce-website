@@ -1,8 +1,8 @@
 import React from 'react';
-import { ChevronRight } from 'lucide-react';
+import { Edit3 } from 'lucide-react';
 import { formatEnPrice, statusLabels } from './AdminCommon';
 
-export const OrderManager = ({ orders, onSelectOrder, language }) => {
+export const OrderManager = ({ orders, onSelectOrder, language, onNotify }) => {
   const formatDate = (dateStr) => {
     const date = new Date(dateStr);
     return new Intl.DateTimeFormat(language === 'ar' ? 'ar-EG' : 'en-US', {
@@ -38,7 +38,17 @@ export const OrderManager = ({ orders, onSelectOrder, language }) => {
                 <td data-label={language === 'ar' ? 'الطلب' : 'Order'}>
                   <div className="order-cell">
                     <div className="order-id-group">
-                      <code className="order-id">#{order.id.slice(0, 8).toUpperCase()}</code>
+                      <code 
+                        className="order-id clickable" 
+                        title={language === 'ar' ? 'انقر للنسخ' : 'Click to copy'} 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigator.clipboard.writeText(order.id);
+                          onNotify?.(language === 'ar' ? 'تم نسخ المعرف!' : 'ID Copied!', 'success');
+                        }}
+                      >
+                        {order.id.slice(0, 8)}
+                      </code>
                       <span className="items-badge">{itemsCount} {language === 'ar' ? 'قطع' : 'pcs'}</span>
                     </div>
                     <small className="order-time">{formatDate(order.created_at)}</small>
@@ -62,7 +72,7 @@ export const OrderManager = ({ orders, onSelectOrder, language }) => {
                     {language === 'ar' ? statusLabels[order.status] : order.status}
                   </span>
                 </td>
-                <td><div className="table-action"><ChevronRight size={18} /></div></td>
+                <td><div className="table-action"><Edit3 size={18} /></div></td>
               </tr>
             );
           })}
@@ -71,6 +81,9 @@ export const OrderManager = ({ orders, onSelectOrder, language }) => {
       
       <style dangerouslySetInnerHTML={{ __html: `
         .order-cell { display: flex; flex-direction: column; gap: 4px; min-width: 150px; }
+        .order-id { font-size: 11px; background: #eff6ff; padding: 4px 8px; border-radius: 6px; color: #3b82f6; font-family: 'JetBrains Mono', monospace; font-weight: 700; border: 1px solid rgba(59, 130, 246, 0.1); display: inline-block; white-space: nowrap; max-width: 120px; overflow: hidden; text-overflow: ellipsis; cursor: copy; transition: all 0.2s; }
+        .order-id:hover { background: #dbeafe; transform: translateY(-1px); }
+        .order-id:active { transform: translateY(0); }
         .order-id-group { display: flex; align-items: center; gap: 8px; }
         .items-badge { 
           font-size: 0.65rem; background: #f1f5f9; padding: 2px 6px; border-radius: 4px; 

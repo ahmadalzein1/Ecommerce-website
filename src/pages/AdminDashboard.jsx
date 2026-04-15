@@ -401,6 +401,7 @@ export default function AdminDashboard() {
                 orders={orders.slice(0, 5)} 
                 onSelectOrder={setSelectedOrder} 
                 language={language}
+                onNotify={notify}
               />
             </div>
           </div>
@@ -435,7 +436,7 @@ export default function AdminDashboard() {
               </div>
             </div>
             <div className="pro-content-card">
-              <OrderManager orders={filteredOrders} onSelectOrder={setSelectedOrder} language={language} />
+              <OrderManager orders={filteredOrders} onSelectOrder={setSelectedOrder} language={language} onNotify={notify} />
             </div>
           </div>
         );
@@ -683,6 +684,7 @@ export default function AdminDashboard() {
           onUpdateStatus={handleUpdateStatus}
           language={language}
           updatingId={updatingId}
+          onNotify={notify}
         />
       )}
 

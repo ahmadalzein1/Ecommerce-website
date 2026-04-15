@@ -2,8 +2,14 @@ import React from 'react';
 import { X, Users, Mail, ShoppingBag, DollarSign, BarChart2, Package } from 'lucide-react';
 import { formatEnPrice, statusLabels } from './AdminCommon';
 
-export const OrderIntelligenceModal = ({ order, isOpen, onClose, onUpdateStatus, updatingId, language }) => {
+export const OrderIntelligenceModal = ({ order, isOpen, onClose, onUpdateStatus, updatingId, language, onNotify }) => {
   if (!isOpen || !order) return null;
+
+  const copyIdToClipboard = (e) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(order.id);
+    onNotify?.(language === 'ar' ? 'تم نسخ المعرف!' : 'ID Copied!', 'success');
+  };
 
   const totalNetProfit = (order.order_items || []).reduce((acc, item) => 
     acc + ((item.price_at_purchase - (item.cost_price_at_purchase || 0)) * item.quantity), 0);
@@ -29,7 +35,13 @@ export const OrderIntelligenceModal = ({ order, isOpen, onClose, onUpdateStatus,
             </div>
             <div>
               <h3>{language === 'ar' ? 'تفاصيل الطلب' : 'Order Intelligence'}</h3>
-              <code className="order-id-badge">#{order.id.slice(0, 8).toUpperCase()}</code>
+              <code 
+                className="order-id-badge clickable" 
+                title={language === 'ar' ? 'انقر للنسخ' : 'Click to copy'} 
+                onClick={copyIdToClipboard}
+              >
+                {order.id.slice(0, 8)}
+              </code>
             </div>
           </div>
           <button className="close-modal-btn" onClick={onClose}><X size={20} /></button>
@@ -115,7 +127,10 @@ export const OrderIntelligenceModal = ({ order, isOpen, onClose, onUpdateStatus,
       </div>
 
       <style dangerouslySetInnerHTML={{ __html: `
-        .order-id-badge { font-size: 11px; background: #f1f5f9; padding: 2px 6px; border-radius: 4px; color: #64748b; font-family: 'JetBrains Mono'; margin-top: 4px; display: inline-block; }
+        .order-id-badge { font-size: 11px; background: #eff6ff; padding: 4px 8px; border-radius: 6px; color: #3b82f6; font-family: 'JetBrains Mono', monospace; font-weight: 700; border: 1px solid rgba(59, 130, 246, 0.1); margin-top: 4px; display: inline-block; box-shadow: 0 2px 4px rgba(59, 130, 246, 0.05); transition: all 0.2s; }
+        .order-id-badge.clickable { cursor: copy; }
+        .order-id-badge.clickable:hover { background: #dbeafe; transform: translateY(-1px); }
+        .order-id-badge.clickable:active { transform: translateY(0); }
         .timestamp-section { display: flex; align-items: center; gap: 8px; padding: 12px 16px; background: rgba(59, 130, 246, 0.05); border-radius: 12px; margin-bottom: 24px; font-size: 0.85rem; color: #3b82f6; }
         .timestamp-section strong { color: #1e3a8a; }
 
