@@ -35,14 +35,15 @@ export const formatPrice = (amount, currency = 'USD') => {
 
 export const generateWhatsAppUrl = (message) => {
   const encoded = encodeURIComponent(message);
-  return `https://api.whatsapp.com/send?phone=${WHATSAPP_NUMBER}&text=${encoded}`;
+  return `https://wa.me/${WHATSAPP_NUMBER}?text=${encoded}`;
 };
 
-export const generateOrderMessage = (items, customerName, customerPhone, total, discount = null, lang = 'ar') => {
+export const generateOrderMessage = (items, customerName, customerPhone, address, total, lang = 'ar') => {
   const isRTL = lang === 'ar';
   let msg = `*${isRTL ? 'طلب جديد' : 'New Order'} — Zein Shop*\n\n`;
   msg += `*${isRTL ? 'الاسم' : 'Name'}:* ${customerName}\n`;
-  msg += `*${isRTL ? 'رقم الهاتف' : 'Phone'}:* ${customerPhone}\n\n`;
+  msg += `*${isRTL ? 'رقم الهاتف' : 'Phone'}:* ${customerPhone}\n`;
+  msg += `*${isRTL ? 'العنوان' : 'Address'}:* ${address}\n\n`;
   msg += `*${isRTL ? 'المنتجات المطلوبة' : 'Requested Products'}:*\n`;
   msg += `─────────────────\n`;
 
@@ -58,9 +59,6 @@ export const generateOrderMessage = (items, customerName, customerPhone, total, 
   });
 
   msg += `─────────────────\n`;
-  if (discount) {
-    msg += `*${isRTL ? 'الخصم' : 'Discount'}:* ${discount.code} (-${discount.value}%)\n`;
-  }
   msg += `*${isRTL ? 'الإجمالي الكلي' : 'Grand Total'}: ${formatPrice(total)}*\n`;
   msg += `*${isRTL ? 'الإجمالي (بالليرة)' : 'Total (LBP)'}: ${formatPrice(total, 'LBP')}*\n\n`;
   msg += `*${isRTL ? 'الدفع' : 'Payment'}:* ${isRTL ? 'الدفع عند الاستلام' : 'Cash on Delivery'}\n`;

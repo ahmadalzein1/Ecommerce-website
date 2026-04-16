@@ -78,6 +78,10 @@ export const errorService = {
       return isAR ? 'البريد الإلكتروني أو كلمة المرور غير صحيحة' : 'Invalid email or password';
     }
     
+    if (msg.toLowerCase().includes('insufficient stock')) {
+      return isAR ? 'عذراً، الكمية المتوفرة في المخزون غير كافية' : 'Sorry, there is not enough stock available';
+    }
+    
     // 5. Fallback with more detail if possible
     const fallbackMsg = isAR 
       ? 'حدث خطأ غير متوقع. يرجى المحاولة لاحقاً' 

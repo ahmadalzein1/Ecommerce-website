@@ -4,7 +4,8 @@ import {
   ShoppingBag, Users, DollarSign, Package, 
   Search, Filter, ExternalLink, LogOut,
   ChevronRight, ArrowUpRight, TrendingUp, Clock,
-  Menu, X, Plus, Layers, Palette, CreditCard
+  Menu, X, Plus, Layers, Palette, CreditCard,
+  BarChart2
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { adminService } from '../lib/adminService';
@@ -17,12 +18,12 @@ import { StatCard, formatEnPrice, en, AdminConfirmModal, AdminProLoader, AdminTo
 import { OrderManager } from '../components/Admin/OrderManager';
 import { ProductManager } from '../components/Admin/ProductManager';
 import { CategoryManager, ColorManager } from '../components/Admin/TaxonomyManager';
-import { DiscountManager } from '../components/Admin/DiscountManager';
+import { AnalyticsManager } from '../components/Admin/AnalyticsManager';
 import { OrderIntelligenceModal } from '../components/Admin/OrderIntelligenceModal';
 import { ProductWizard } from '../components/Admin/ProductWizard';
 import AdminSearch from '../components/Admin/AdminSearch';
 import { CategoryModal, ColorModal } from '../components/Admin/TaxonomyModals';
-import DiscountModal from '../components/Admin/DiscountModal';
+
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('overview'); 
@@ -30,7 +31,7 @@ export default function AdminDashboard() {
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [colors, setColors] = useState([]);
-  const [discounts, setDiscounts] = useState([]);
+
   const [stats, setStats] = useState({ 
     totalOrders: 0, 
     pendingOrders: 0,
@@ -59,7 +60,7 @@ export default function AdminDashboard() {
   const [selectedItem, setSelectedItem] = useState(null);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [showColorModal, setShowColorModal] = useState(false);
-  const [showDiscountModal, setShowDiscountModal] = useState(false);
+
   const [confirmConfig, setConfirmConfig] = useState({ isOpen: false, title: '', message: '', itemName: '', onConfirm: null });
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -104,9 +105,9 @@ export default function AdminDashboard() {
     orderList?.forEach(order => {
       if (order.status === 'pending') {
         pending++;
-      } else if (order.status === 'delivering' || order.status === 'paid') {
+      } else if (order.status === 'delivering' || order.status === 'received_paid') {
         if (order.status === 'delivering') delivering++;
-        if (order.status === 'paid') paid++;
+        if (order.status === 'received_paid') paid++;
         
         totalRev += order.total_amount;
         order.order_items?.forEach(item => {
@@ -131,7 +132,22 @@ export default function AdminDashboard() {
 
   const fetchOrders = async () => {
     try {
-      const orderData = await supabase.from('orders').select('*, order_items(*)').order('created_at', { ascending: false });
+      const orderData = await supabase.from('orders')
+        .select(`
+          *,
+          order_items(
+            *,
+            variant:product_variant_id(
+              *,
+              product:product_id(name_ar, name_en, base_image_url),
+              color_map:product_color_id(
+                image_url,
+                color_info:color_id(*)
+              )
+            )
+          )
+        `)
+        .order('created_at', { ascending: false });
       if (orderData.error) throw orderData.error;
       setOrders(orderData.data || []);
       calculateStats(orderData.data || []);
@@ -167,14 +183,7 @@ export default function AdminDashboard() {
     }
   };
 
-  const fetchDiscounts = async () => {
-    try {
-      const discountData = await adminService.fetchDiscountCodes();
-      setDiscounts(discountData?.data || []);
-    } catch (err) { 
-      notify(adminService.handleError(err, language), 'error');
-    }
-  };
+
 
   const fetchAllData = async () => {
     setLoading(true);
@@ -183,7 +192,6 @@ export default function AdminDashboard() {
       fetchProducts(),
       fetchCategories(),
       fetchColors(),
-      fetchDiscounts()
     ]);
     setLoading(false);
   };
@@ -201,21 +209,30 @@ export default function AdminDashboard() {
     setUpdatingId(order.id);
     try {
       const updateLogic = async () => {
-        const deductedGroup = ['delivering', 'paid'];
+        const deductedGroup = ['delivering', 'received_paid'];
         const wasDeducted = deductedGroup.includes(oldStatus);
         const shouldBeDeducted = deductedGroup.includes(newStatus);
 
+        // 1. Handle Stock Adjustments
         if (shouldBeDeducted && !wasDeducted) {
+          // Decrement stock when moving to active/paid
           for (const item of order.order_items) {
-            await supabase.rpc('decrement_stock', { variant_id: item.product_variant_id, qty: item.quantity });
+            await supabase.rpc('decrement_stock', { 
+              variant_id: item.product_variant_id, 
+              qty: item.quantity 
+            });
           }
         } else if (!shouldBeDeducted && wasDeducted) {
+          // Increment stock back when moving away from active/paid
           for (const item of order.order_items) {
-            const { data: v } = await supabase.from('product_variants').select('stock_quantity').eq('id', item.product_variant_id).single();
-            if (v) await supabase.from('product_variants').update({ stock_quantity: v.stock_quantity + item.quantity }).eq('id', item.product_variant_id);
+            await supabase.rpc('increment_stock', { 
+              variant_id: item.product_variant_id, 
+              qty: item.quantity 
+            });
           }
         }
 
+        // 2. Update status
         const { error } = await supabase.from('orders').update({ status: newStatus }).eq('id', order.id);
         if (error) throw error;
       };
@@ -335,39 +352,7 @@ export default function AdminDashboard() {
     });
   };
 
-  const handleSaveDiscount = async (data) => {
-    if (!errorService.isOnline()) {
-      notify(language === 'ar' ? 'لا يوجد اتصال بالإنترنت' : 'No internet connection', 'error');
-      return;
-    }
-    try {
-      const action = selectedItem 
-        ? () => adminService.updateDiscountCode(selectedItem.id, data)
-        : () => adminService.createDiscountCode(data);
 
-      await errorService.withTimeout(action(), 15000);
-      notify(language === 'ar' ? 'تم حفظ كود الخصم' : 'Discount code saved', 'success');
-      await fetchAllData();
-      setShowDiscountModal(false);
-      setSelectedItem(null);
-    } catch (err) {
-      notify(errorService.translate(err, language), 'error');
-    }
-  };
-
-  const handleDeleteDiscount = (id) => {
-    const discount = discounts.find(d => d.id === id);
-    setConfirmConfig({
-      isOpen: true,
-      title: language === 'ar' ? 'حذف كود الخصم' : 'Delete Discount Code',
-      message: language === 'ar' ? 'هل أنت متأكد من حذف كود الخصم هذا؟' : 'Are you sure you want to delete this discount code?',
-      itemName: discount?.code,
-      onConfirm: () => handleAction(
-        () => adminService.deleteDiscountCode(id),
-        'تم حذف كود الخصم بنجاح', 'Discount deleted successfully'
-      )
-    });
-  };
 
   const handleLogout = async () => {
     await logout();
@@ -383,7 +368,7 @@ export default function AdminDashboard() {
           <div className="admin-overview">
             <h1 className="admin-title">{language === 'ar' ? 'نظرة عامة' : 'Dashboard Overview'}</h1>
             <div className="stats-grid">
-              <StatCard label={language === 'ar' ? 'إجمالي الإيرادات (مدفوع + شحن)' : 'Total Revenue (Paid + Deliv.)'} value={formatEnPrice(stats.revenue)} icon={DollarSign} colorClass="gold" />
+              <StatCard label={language === 'ar' ? 'إجمالي الإيرادات' : 'Total Revenue'} value={formatEnPrice(stats.revenue)} icon={DollarSign} colorClass="gold" />
               <StatCard label={language === 'ar' ? 'إجمالي الأرباح' : 'Net Profit'} value={formatEnPrice(stats.profit)} icon={TrendingUp} colorClass="green" />
               <StatCard label={language === 'ar' ? 'طلبات مدفوعة' : 'Paid Orders'} value={en(stats.paidOrders)} icon={CreditCard} colorClass="green" />
               <StatCard label={language === 'ar' ? 'طلبات قيد التوصيل' : 'Delivering Orders'} value={en(stats.deliveringOrders)} icon={Package} colorClass="blue" />
@@ -544,37 +529,18 @@ export default function AdminDashboard() {
             </div>
           </div>
         );
-      case 'discounts':
-        const filteredDiscounts = discounts.filter(d => 
-          d.code?.toLowerCase().includes(searchTerm.toLowerCase())
-        );
+      case 'analytics':
         return (
           <div className="tab-pane">
             <div className="premium-section-header">
               <div className="header-main-group">
                 <div className="title-stack">
-                  <h1 className="pro-admin-title">{language === 'ar' ? 'إدارة الخصومات' : 'Discounts & Codes'}</h1>
-                  <p className="pro-admin-subtitle">{language === 'ar' ? 'إنشاء وإدارة أكواد العروض' : 'Create and manage promo codes'}</p>
+                  <h1 className="pro-admin-title">{language === 'ar' ? 'تحليلات المبيعات' : 'Sales Analytics'}</h1>
+                  <p className="pro-admin-subtitle">{language === 'ar' ? 'تتبع أداء المنتجات والأرباح' : 'Track product performance and profits'}</p>
                 </div>
               </div>
-              <div className="header-actions-group">
-                <div className="pro-search-wrapper">
-                  <AdminSearch value={searchTerm} onChange={setSearchTerm} language={language} />
-                </div>
-                <button className="pro-add-btn" onClick={() => { setSelectedItem(null); setShowDiscountModal(true); }}>
-                  <Plus size={18} /> <span>{language === 'ar' ? 'خصم جديد' : 'New Discount'}</span>
-                </button>
-              </div>
             </div>
-            <div className="pro-content-card">
-              <DiscountManager 
-                discounts={filteredDiscounts} 
-                language={language} 
-                onAdd={() => { setSelectedItem(null); setShowDiscountModal(true); }}
-                onEdit={d => { setSelectedItem(d); setShowDiscountModal(true); }}
-                onDelete={handleDeleteDiscount} 
-              />
-            </div>
+            <AnalyticsManager products={products} orders={orders} language={language} />
           </div>
         );
       default:
@@ -611,8 +577,8 @@ export default function AdminDashboard() {
           <button onClick={() => { setActiveTab('colors'); setIsSidebarOpen(false); }} className={`nav-item ${activeTab === 'colors' ? 'active' : ''}`}>
             <Palette size={18} /> <span>{language === 'ar' ? 'الألوان' : 'Colors'}</span>
           </button>
-          <button onClick={() => { setActiveTab('discounts'); setIsSidebarOpen(false); }} className={`nav-item ${activeTab === 'discounts' ? 'active' : ''}`}>
-            <CreditCard size={18} /> <span>{language === 'ar' ? 'الخصومات' : 'Discounts'}</span>
+          <button onClick={() => { setActiveTab('analytics'); setIsSidebarOpen(false); }} className={`nav-item ${activeTab === 'analytics' ? 'active' : ''}`}>
+            <BarChart2 size={18} /> <span>{language === 'ar' ? 'التحليلات' : 'Analytics'}</span>
           </button>
         </nav>
 
@@ -680,6 +646,7 @@ export default function AdminDashboard() {
       {selectedOrder && (
         <OrderIntelligenceModal 
           order={selectedOrder} 
+          isOpen={!!selectedOrder}
           onClose={() => setSelectedOrder(null)} 
           onUpdateStatus={handleUpdateStatus}
           language={language}
@@ -719,14 +686,7 @@ export default function AdminDashboard() {
         />
       )}
 
-      {showDiscountModal && (
-        <DiscountModal 
-          discount={selectedItem}
-          onClose={() => { setShowDiscountModal(false); setSelectedItem(null); }}
-          onSave={handleSaveDiscount}
-          language={language}
-        />
-      )}
+
 
       <AdminConfirmModal 
         isOpen={confirmConfig.isOpen}
@@ -1072,11 +1032,14 @@ export default function AdminDashboard() {
         }
         @media (max-width: 1024px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } }
         @media (max-width: 640px) { 
-          .stats-grid { grid-template-columns: 1fr; gap: 12px; } 
-          .stat-card-new { padding: 16px; border-radius: 16px; }
-          .stat-icon-wrapper { width: 44px !important; height: 44px !important; border-radius: 12px !important; }
-          .stat-value-modern { font-size: 1.25rem !important; }
-          .stat-label-modern { font-size: 0.8rem !important; }
+          .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; } 
+          .stat-card-new { padding: 12px; border-radius: 16px; min-height: 100px; }
+          .stat-icon-wrapper { width: 36px !important; height: 36px !important; border-radius: 10px !important; }
+          .stat-icon-wrapper svg { width: 18px; height: 18px; }
+          .stat-value-modern { font-size: 1.1rem !important; }
+          .stat-label-modern { font-size: 0.75rem !important; line-height: 1.2; }
+          .stat-data-cluster { gap: 2px; }
+          .stat-card-inner { gap: 10px; }
         }
 
         /* Responsive Table-to-Card System */

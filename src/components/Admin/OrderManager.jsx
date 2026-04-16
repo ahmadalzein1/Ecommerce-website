@@ -1,6 +1,6 @@
 import React from 'react';
 import { Edit3 } from 'lucide-react';
-import { formatEnPrice, statusLabels } from './AdminCommon';
+import { formatEnPrice, statusLabels, statusLabelsEn } from './AdminCommon';
 
 export const OrderManager = ({ orders, onSelectOrder, language, onNotify }) => {
   const formatDate = (dateStr) => {
@@ -67,12 +67,15 @@ export const OrderManager = ({ orders, onSelectOrder, language, onNotify }) => {
                   </span>
                 </td>
                 <td data-label={language === 'ar' ? 'الحالة' : 'Status'}>
-                  <span className={`status-badge ${order.status}`}>
-                    <span className="status-dot"></span>
-                    {language === 'ar' ? statusLabels[order.status] : order.status}
+                  <span className={`status-badge-v2 ${order.status}`}>
+                    {language === 'ar' ? statusLabels[order.status] : statusLabelsEn[order.status]}
                   </span>
                 </td>
-                <td><div className="table-action"><Edit3 size={18} /></div></td>
+                <td>
+                  <div className="table-action" onClick={() => onSelectOrder(order)}>
+                    <Edit3 size={18} />
+                  </div>
+                </td>
               </tr>
             );
           })}
@@ -95,7 +98,19 @@ export const OrderManager = ({ orders, onSelectOrder, language, onNotify }) => {
         .table-user { min-width: 160px; word-break: break-all; }
         .user-name { display: block; font-weight: 700; color: #0f172a; }
         .user-phone { display: block; color: #64748b; font-size: 0.8rem; }
-        .status-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+        .status-badge-v2 {
+          display: inline-flex; align-items: center; gap: 8px;
+          padding: 6px 14px; border-radius: 99px;
+          font-size: 0.75rem; font-weight: 800; text-transform: uppercase;
+          transition: all 0.2s;
+        }
+        .status-badge-v2.pending { background: #fef3c7; color: #b45309; }
+        .status-badge-v2.delivering { background: #dbeafe; color: #1d4ed8; }
+        .status-badge-v2.received_paid { background: #d1fae5; color: #047857; }
+        .status-badge-v2.canceled { background: #fee2e2; color: #b91c1c; }
+        .status-badge-v2.expired { background: #f3f4f6; color: #4b5563; }
+        
+        .status-badge-v2:hover { filter: brightness(0.95); transform: translateY(-1px); }
         
         @media (max-width: 768px) {
           .items-badge { margin-inline-start: auto; }

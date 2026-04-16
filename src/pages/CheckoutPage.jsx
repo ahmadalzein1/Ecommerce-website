@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { MessageCircle, ArrowLeft, ShoppingBag, Tag, X, User, Phone, Minus, Plus, Trash2 } from 'lucide-react';
+import { MessageCircle, ArrowLeft, ShoppingBag, Tag, X, User, Phone, Minus, Plus, Trash2, Building2 } from 'lucide-react';
 import useCartStore from '../stores/cartStore';
 import { supabase } from '../lib/supabase';
 import { errorService } from '../lib/errorService';
@@ -11,9 +11,8 @@ import useScrollReveal from '../hooks/useScrollReveal';
 
 export default function CheckoutPage() {
   const {
-    items, discount, discountError, discountLoading,
-    applyDiscount, removeDiscount, removeItem, updateQuantity,
-    getSubtotal, getDiscountAmount, getTotal, clearCart
+    items, removeItem, updateQuantity,
+    getSubtotal, getTotal, clearCart
   } = useCartStore();
   const { t, isRTL, getLocalizedField, language } = useLanguageStore();
 
@@ -21,24 +20,18 @@ export default function CheckoutPage() {
 
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
-  const [discountCode, setDiscountCode] = useState('');
+  const [address, setAddress] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const navigate = useNavigate();
 
   const subtotal = getSubtotal();
-  const discountAmt = getDiscountAmount();
   const total = getTotal();
-
-  const handleApplyDiscount = async () => {
-    if (!discountCode.trim()) return;
-    await applyDiscount(discountCode);
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!name.trim() || !phone.trim()) {
-      setError(language === 'ar' ? 'يرجى ملء اسمك ورقم هاتفك.' : 'Please fill in your name and phone number.');
+    if (!name.trim() || !phone.trim() || !address.trim()) {
+      setError(language === 'ar' ? 'يرجى ملء جميع الحقول المطلوبة.' : 'Please fill in all required fields.');
       return;
     }
     if (items.length === 0) {
@@ -56,20 +49,43 @@ export default function CheckoutPage() {
 
     try {
       const createOrderLogic = async () => {
-        // Create the order in Supabase
-        const { data: order, error: orderError } = await supabase
-          .from('orders')
-          .insert({
-            customer_name: name.trim(),
-            customer_phone: phone.trim(),
-            status: 'pending',
-            discount_code_id: discount?.id || null,
-            total_amount: total,
-          })
-          .select()
-          .single();
+        let order;
+        try {
+          const { data, error: orderError } = await supabase
+            .from('orders')
+            .insert({
+              customer_name: name.trim(),
+              customer_phone: phone.trim(),
+              address: address.trim(),
+              status: 'pending',
+              total_amount: total,
+            })
+            .select()
+            .single();
 
-        if (orderError) throw orderError;
+          if (orderError) throw orderError;
+          order = data;
+        } catch (err) {
+          // Fallback: If 'address' column is missing, save it in the name field
+          if (err.message?.includes('address') || err.code === '42703') {
+            console.log('Address column missing, using fallback...');
+            const { data: fallbackOrder, error: fallbackError } = await supabase
+              .from('orders')
+              .insert({
+                customer_name: `${name.trim()} (${address.trim()})`,
+                customer_phone: phone.trim(),
+                status: 'pending',
+                total_amount: total,
+              })
+              .select()
+              .single();
+
+            if (fallbackError) throw fallbackError;
+            order = fallbackOrder;
+          } else {
+            throw err;
+          }
+        }
 
         // Create order items
         const orderItems = items.map((item) => ({
@@ -79,9 +95,6 @@ export default function CheckoutPage() {
           unit_price: item.price,
           price_at_purchase: item.price,
           cost_price_at_purchase: item.costPrice || 0,
-          coupon_discount_amount: discount
-            ? (item.price * item.quantity * discount.value) / 100 / items.length
-            : 0,
         }));
 
         const { error: itemsError } = await supabase
@@ -89,39 +102,20 @@ export default function CheckoutPage() {
           .insert(orderItems);
 
         if (itemsError) throw itemsError;
-
-        // Increment discount usage
-        if (discount) {
-          try {
-            const { data: currentDiscount } = await supabase
-              .from('discount_codes')
-              .select('times_used')
-              .eq('id', discount.id)
-              .single();
-              
-            await supabase
-              .from('discount_codes')
-              .update({ times_used: (currentDiscount?.times_used || 0) + 1 })
-              .eq('id', discount.id);
-          } catch (discountErr) {
-            console.warn('Could not update discount usage:', discountErr);
-          }
-        }
       };
 
       // Wrap whole order logic in 15s timeout
       await errorService.withTimeout(createOrderLogic(), 15000);
 
       // Generate WhatsApp message
-      const message = generateOrderMessage(items, name, phone, total, discount, language);
+      const message = generateOrderMessage(items, name, phone, address, total, language);
       const whatsappUrl = generateWhatsAppUrl(message);
 
       // Clear cart and navigate
       clearCart();
 
-      // Open WhatsApp
-      window.open(whatsappUrl, '_blank');
-      navigate('/');
+      // Open WhatsApp and redirect
+      window.location.href = whatsappUrl;
     } catch (err) {
       setError(errorService.translate(err, language));
     } finally {
@@ -185,40 +179,23 @@ export default function CheckoutPage() {
                   />
                 </div>
 
-                {/* Discount */}
-                {!discount ? (
-                  <div className="input-group">
-                    <label className="input-label">
-                      <Tag size={14} style={{ display: 'inline', [isRTL() ? 'marginLeft' : 'marginRight']: '6px' }} />
-                      {t('checkout.discountCode')}
-                    </label>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <input
-                        className="input-field"
-                        placeholder={t('checkout.codePlaceholder')}
-                        value={discountCode}
-                        onChange={(e) => setDiscountCode(e.target.value)}
-                        style={{ flex: 1, textTransform: 'uppercase' }}
-                      />
-                      <button
-                        type="button"
-                        className="btn btn-outline"
-                        onClick={handleApplyDiscount}
-                        disabled={discountLoading}
-                      >
-                        {discountLoading ? '...' : t('checkout.apply')}
-                      </button>
-                    </div>
-                    {discountError && <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-error)' }}>{discountError}</span>}
-                  </div>
-                ) : (
-                  <div className="cart-discount-success">
-                    <span><Tag size={14} /> {discount.code} (-{discount.value}%)</span>
-                    <button type="button" onClick={removeDiscount} style={{ color: 'var(--color-text-muted)' }}>
-                      <X size={16} />
-                    </button>
-                  </div>
-                )}
+                <div className="input-group">
+                  <label className="input-label">
+                    <Building2 size={14} style={{ display: 'inline', [isRTL() ? 'marginLeft' : 'marginRight']: '6px' }} />
+                    {t('checkout.address')}
+                  </label>
+                  <textarea
+                    className="input-field"
+                    placeholder={t('checkout.addressPlaceholder')}
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
+                    required
+                    rows={3}
+                    style={{ resize: 'none' }}
+                  />
+                </div>
+
+
 
                 {error && (
                   <div style={{
@@ -314,12 +291,7 @@ export default function CheckoutPage() {
                 <span>{t('cart.subtotal')}</span>
                 <span>{formatPrice(subtotal)}</span>
               </div>
-              {discount && (
-                <div className="cart-summary-row discount">
-                  <span>{isRTL() ? `الخصم (${discount.value}%)` : `Discount (${discount.value}%)`}</span>
-                  <span>-{formatPrice(discountAmt)}</span>
-                </div>
-              )}
+
               <div className="cart-summary-row total">
                 <span>{t('cart.total')}</span>
                 <span>{formatPrice(total)}</span>

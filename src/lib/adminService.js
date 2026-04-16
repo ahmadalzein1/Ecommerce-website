@@ -298,45 +298,6 @@ export const adminService = {
     if (error) throw error;
   },
 
-  // --- DISCOUNT CODES ---
-  async fetchDiscountCodes() {
-    const { data, error } = await supabase
-      .from('discount_codes')
-      .select('*')
-      .order('created_at', { ascending: false });
-    if (error) return { data: [] };
-    return { data: data || [] };
-  },
-
-  async createDiscountCode(discountData) {
-    const { data, error } = await supabase
-      .from('discount_codes')
-      .insert([discountData])
-      .select()
-      .single();
-    if (error) throw error;
-    return data;
-  },
-
-  async updateDiscountCode(id, discountData) {
-    const { data, error } = await supabase
-      .from('discount_codes')
-      .update(discountData)
-      .eq('id', id)
-      .select()
-      .single();
-    if (error) throw error;
-    return data;
-  },
-
-  async deleteDiscountCode(id) {
-    const { error } = await supabase
-      .from('discount_codes')
-      .delete()
-      .eq('id', id);
-    if (error) throw error;
-  },
-
   async deleteProduct(productId) {
     const { error } = await supabase
       .from('products')
@@ -346,3 +307,4 @@ export const adminService = {
   },
 
 };
+

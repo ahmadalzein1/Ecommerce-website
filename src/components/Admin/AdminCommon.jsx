@@ -99,10 +99,18 @@ export const formatEnPrice = (amount) => {
 
 export const statusLabels = {
   pending: 'قيد الانتظار',
-  delivering: 'قيد التوصيل',
-  paid: 'مدفوع',
-  cancelled: 'ملغى',
+  delivering: 'جاري التوصيل',
+  received_paid: 'تم الدفع',
+  canceled: 'ملغى',
   expired: 'منتهي',
+};
+
+export const statusLabelsEn = {
+  pending: 'Pending',
+  delivering: 'Delivering',
+  received_paid: 'Paid',
+  canceled: 'Canceled',
+  expired: 'Expired',
 };
 
 export const StatCard = ({ icon: Icon, label, value, trend, trendLabel, colorClass }) => (

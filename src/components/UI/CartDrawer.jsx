@@ -10,23 +10,13 @@ export default function CartDrawer() {
   const {
     items, isCartOpen, closeCart,
     removeItem, updateQuantity,
-    discount, discountLoading, discountError,
-    applyDiscount, removeDiscount,
-    getSubtotal, getDiscountAmount, getTotal, getItemCount
+    getSubtotal, getTotal, getItemCount
   } = useCartStore();
   const { t, isRTL, getLocalizedField } = useLanguageStore();
 
-  const [discountCode, setDiscountCode] = useState('');
-
   if (!isCartOpen) return null;
 
-  const handleApplyDiscount = async () => {
-    if (!discountCode.trim()) return;
-    await applyDiscount(discountCode);
-  };
-
   const subtotal = getSubtotal();
-  const discountAmt = getDiscountAmount();
   const total = getTotal();
   const count = getItemCount();
 
@@ -95,35 +85,7 @@ export default function CartDrawer() {
 
         {items.length > 0 && (
           <div className="cart-footer">
-            {/* Discount Code */}
-            {!discount ? (
-              <>
-                <div className="cart-discount">
-                  <input
-                    className="input-field"
-                    placeholder={t('checkout.discountCode')}
-                    value={discountCode}
-                    onChange={(e) => setDiscountCode(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleApplyDiscount()}
-                  />
-                  <button
-                    className="btn btn-outline btn-sm"
-                    onClick={handleApplyDiscount}
-                    disabled={discountLoading}
-                  >
-                    {discountLoading ? '...' : t('checkout.apply')}
-                  </button>
-                </div>
-                {discountError && <div className="cart-discount-error">{discountError}</div>}
-              </>
-            ) : (
-              <div className="cart-discount-success">
-                <span><Tag size={14} /> {discount.code} (-{discount.value}%)</span>
-                <button onClick={removeDiscount} style={{ color: 'var(--color-text-muted)' }}>
-                  <X size={16} />
-                </button>
-              </div>
-            )}
+
 
             {/* Summary */}
             <div className="cart-summary">
@@ -131,12 +93,7 @@ export default function CartDrawer() {
                 <span>{t('cart.subtotal')}</span>
                 <span>{formatPrice(subtotal)}</span>
               </div>
-              {discount && (
-                <div className="cart-summary-row discount">
-                  <span>{isRTL() ? `الخصم (${discount.value}%)` : `Discount (${discount.value}%)`}</span>
-                  <span>-{formatPrice(discountAmt)}</span>
-                </div>
-              )}
+
               <div className="cart-summary-row total">
                 <span>{t('cart.total')}</span>
                 <span>{formatPrice(total)}</span>

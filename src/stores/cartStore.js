@@ -18,9 +18,6 @@ const saveCart = (items) => {
 
 const useCartStore = create((set, get) => ({
   items: loadCart(),
-  discount: null,
-  discountLoading: false,
-  discountError: null,
   isCartOpen: false,
 
   openCart: () => set({ isCartOpen: true }),
@@ -78,74 +75,10 @@ const useCartStore = create((set, get) => ({
 
   clearCart: () => {
     saveCart([]);
-    set({ items: [], discount: null });
+    set({ items: [] });
   },
 
-  applyDiscount: async (code) => {
-    const lang = useLanguageStore.getState().language;
-    const isAR = lang === 'ar';
 
-    if (!errorService.isOnline()) {
-      set({ 
-        discountLoading: false, 
-        discountError: isAR ? 'لا يوجد اتصال بالإنترنت' : 'No internet connection' 
-      });
-      return false;
-    }
-
-    set({ discountLoading: true, discountError: null });
-
-    try {
-      const fetchDiscount = async () => {
-        const { data, error } = await supabase
-          .from('discount_codes')
-          .select('*')
-          .eq('code', code.trim().toUpperCase())
-          .eq('is_active', true)
-          .single();
-
-        if (error) throw error;
-        return data;
-      };
-
-      const data = await errorService.withTimeout(fetchDiscount(), 8000);
-
-      if (!data) {
-        throw new Error('invalid_discount');
-      }
-
-      const now = new Date();
-      if (data.valid_from && new Date(data.valid_from) > now) {
-        throw new Error('discount_not_active');
-      }
-      if (data.valid_until && new Date(data.valid_until) < now) {
-        throw new Error('discount_expired');
-      }
-      if (data.max_uses && data.times_used >= data.max_uses) {
-        throw new Error('discount_limit_reached');
-      }
-
-      set({
-        discount: {
-          id: data.id,
-          code: data.code,
-          type: data.discount_type,
-          value: Number(data.discount_value),
-        },
-        discountLoading: false,
-        discountError: null,
-      });
-      return true;
-    } catch (err) {
-      set({ 
-        discountLoading: false, 
-        discountError: errorService.translate(err, lang)
-      });
-      return false;
-    }
-  },
-
-  removeDiscount: () => set({ discount: null, discountError: null }),
 
   getSubtotal: () => {
     return get().items.reduce(
@@ -154,18 +87,8 @@ const useCartStore = create((set, get) => ({
     );
   },
 
-  getDiscountAmount: () => {
-    const discount = get().discount;
-    if (!discount) return 0;
-    const subtotal = get().getSubtotal();
-    if (discount.type === 'percentage') {
-      return (subtotal * discount.value) / 100;
-    }
-    return 0;
-  },
-
   getTotal: () => {
-    return get().getSubtotal() - get().getDiscountAmount();
+    return get().getSubtotal();
   },
 
   getItemCount: () => {
