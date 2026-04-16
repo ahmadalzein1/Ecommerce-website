@@ -1275,7 +1275,7 @@ h1, h2, h3, h4, h5, h6 {
   height: 90px;
   border-radius: var(--radius-sm);
   overflow: hidden;
-  cursor: pointer;
+  cursor: default;
   border: 2px solid transparent;
   transition: all var(--transition-fast);
   flex-shrink: 0;

@@ -231,7 +231,6 @@ export default function ProductPage() {
                   <div
                     key={i}
                     className={`product-gallery-thumb ${mainImage === img.url ? 'active' : ''}`}
-                    onClick={() => setMainImage(img.url)}
                   >
                     <img src={img.url} alt={img.label} />
                   </div>
