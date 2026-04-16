@@ -1,8 +1,8 @@
 export const STORE_NAME = 'Zein Shop';
 export const STORE_TAGLINE = 'أزياء راقية وعصرية';
-export const WHATSAPP_NUMBER = '96176420540';
+export const WHATSAPP_NUMBER = '96171848875';
 export const INSTAGRAM_URL = 'https://www.instagram.com/zeiin_shop';
-export const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL || 'zeinahmad763@gmail.com';
+export const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL;
 export const DELIVERY_INFO = 'توصيل لجميع أنحاء لبنان';
 
 // Currency

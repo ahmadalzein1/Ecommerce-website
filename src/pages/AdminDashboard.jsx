@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  ShoppingBag, Users, DollarSign, Package, 
+import {
+  ShoppingBag, Users, DollarSign, Package,
   Search, Filter, ExternalLink, LogOut,
   ChevronRight, ArrowUpRight, TrendingUp, Clock,
   Menu, X, Plus, Layers, Palette, CreditCard,
@@ -26,28 +26,28 @@ import { CategoryModal, ColorModal } from '../components/Admin/TaxonomyModals';
 
 
 export default function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState('overview'); 
+  const [activeTab, setActiveTab] = useState('overview');
   const [orders, setOrders] = useState([]);
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [colors, setColors] = useState([]);
 
-  const [stats, setStats] = useState({ 
-    totalOrders: 0, 
+  const [stats, setStats] = useState({
+    totalOrders: 0,
     pendingOrders: 0,
     deliveringOrders: 0,
     paidOrders: 0,
-    revenue: 0, 
-    cost: 0, 
-    profit: 0, 
-    customers: 0 
+    revenue: 0,
+    cost: 0,
+    profit: 0,
+    customers: 0
   });
-  
+
   const [loading, setLoading] = useState(true);
   const { logout, user } = useAuthStore();
   const { language, setLanguage } = useLanguageStore();
   const navigate = useNavigate();
-  
+
   // Modals & Selection
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [selectedProduct, setSelectedProduct] = useState(null);
@@ -108,7 +108,7 @@ export default function AdminDashboard() {
       } else if (order.status === 'delivering' || order.status === 'received_paid') {
         if (order.status === 'delivering') delivering++;
         if (order.status === 'received_paid') paid++;
-        
+
         totalRev += order.total_amount;
         order.order_items?.forEach(item => {
           totalCost += (item.cost_price_at_purchase || 0) * item.quantity;
@@ -151,7 +151,7 @@ export default function AdminDashboard() {
       if (orderData.error) throw orderData.error;
       setOrders(orderData.data || []);
       calculateStats(orderData.data || []);
-    } catch (err) { 
+    } catch (err) {
       notify(adminService.handleError(err, language), 'error');
     }
   };
@@ -160,7 +160,7 @@ export default function AdminDashboard() {
     try {
       const productData = await adminService.fetchFullProducts();
       setProducts(productData || []);
-    } catch (err) { 
+    } catch (err) {
       notify(adminService.handleError(err, language), 'error');
     }
   };
@@ -169,7 +169,7 @@ export default function AdminDashboard() {
     try {
       const categoryData = await adminService.fetchCategories();
       setCategories(categoryData || []);
-    } catch (err) { 
+    } catch (err) {
       notify(adminService.handleError(err, language), 'error');
     }
   };
@@ -178,7 +178,7 @@ export default function AdminDashboard() {
     try {
       const colorData = await adminService.fetchColors();
       setColors(colorData || []);
-    } catch (err) { 
+    } catch (err) {
       notify(adminService.handleError(err, language), 'error');
     }
   };
@@ -228,8 +228,8 @@ export default function AdminDashboard() {
             const liveVariant = currentStock.find(v => v.id === item.product_variant_id);
             const available = liveVariant?.stock_quantity || 0;
             if (available < item.quantity) {
-              const pName = language === 'ar' 
-                ? item.variant?.product?.name_ar 
+              const pName = language === 'ar'
+                ? item.variant?.product?.name_ar
                 : item.variant?.product?.name_en;
               shortages.push(`${pName} (${language === 'ar' ? 'المتوفر' : 'Avail'}: ${available})`);
             }
@@ -246,17 +246,17 @@ export default function AdminDashboard() {
         // 2. Handle Stock Adjustments (If validation passed)
         if (shouldBeDeducted && !wasDeducted) {
           for (const item of order.order_items) {
-            const { error: rpcError } = await supabase.rpc('decrement_stock', { 
-              variant_id: item.product_variant_id, 
-              qty: item.quantity 
+            const { error: rpcError } = await supabase.rpc('decrement_stock', {
+              variant_id: item.product_variant_id,
+              qty: item.quantity
             });
             if (rpcError) throw rpcError;
           }
         } else if (!shouldBeDeducted && wasDeducted) {
           for (const item of order.order_items) {
-            const { error: rpcError } = await supabase.rpc('increment_stock', { 
-              variant_id: item.product_variant_id, 
-              qty: item.quantity 
+            const { error: rpcError } = await supabase.rpc('increment_stock', {
+              variant_id: item.product_variant_id,
+              qty: item.quantity
             });
             if (rpcError) throw rpcError;
           }
@@ -268,8 +268,8 @@ export default function AdminDashboard() {
       };
 
       await errorService.withTimeout(updateLogic(), 15000);
-      await fetchOrders(); 
-      
+      await fetchOrders();
+
       if (selectedOrder?.id === order.id) {
         setSelectedOrder({ ...selectedOrder, status: newStatus });
       }
@@ -321,10 +321,10 @@ export default function AdminDashboard() {
       return;
     }
     try {
-      const action = selectedItem 
+      const action = selectedItem
         ? () => adminService.updateCategory(selectedItem.id, data)
         : () => adminService.createCategory(data);
-        
+
       await errorService.withTimeout(action(), 15000);
       notify(language === 'ar' ? 'تم حفظ الفئة' : 'Category saved', 'success');
       await fetchAllData();
@@ -355,7 +355,7 @@ export default function AdminDashboard() {
       return;
     }
     try {
-      const action = selectedItem 
+      const action = selectedItem
         ? () => adminService.updateColor(selectedItem.id, data)
         : () => adminService.createColor(data);
 
@@ -413,9 +413,9 @@ export default function AdminDashboard() {
                   {language === 'ar' ? 'عرض الكل' : 'View All'} <ChevronRight size={16} />
                 </button>
               </div>
-              <OrderManager 
-                orders={orders.slice(0, 5)} 
-                onSelectOrder={setSelectedOrder} 
+              <OrderManager
+                orders={orders.slice(0, 5)}
+                onSelectOrder={setSelectedOrder}
                 language={language}
                 onNotify={notify}
               />
@@ -423,8 +423,8 @@ export default function AdminDashboard() {
           </div>
         );
       case 'orders':
-        const filteredOrders = orders.filter(o => 
-          o.id.toString().includes(searchTerm) || 
+        const filteredOrders = orders.filter(o =>
+          o.id.toString().includes(searchTerm) ||
           o.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
           o.customer_phone?.includes(searchTerm)
         );
@@ -442,10 +442,10 @@ export default function AdminDashboard() {
               </div>
               <div className="header-actions-group">
                 <div className="pro-search-wrapper">
-                  <AdminSearch 
-                    value={searchTerm} 
-                    onChange={setSearchTerm} 
-                    language={language} 
+                  <AdminSearch
+                    value={searchTerm}
+                    onChange={setSearchTerm}
+                    language={language}
                     placeholder={language === 'ar' ? 'البحث عن طلب...' : 'Search for an order...'}
                   />
                 </div>
@@ -474,7 +474,7 @@ export default function AdminDashboard() {
                 <div className="pro-search-wrapper">
                   <AdminSearch value={searchTerm} onChange={setSearchTerm} language={language} />
                 </div>
-                <button 
+                <button
                   className="pro-add-btn"
                   onClick={() => { setSelectedProduct(null); setShowProductModal(true); }}
                 >
@@ -483,11 +483,11 @@ export default function AdminDashboard() {
               </div>
             </div>
             <div className="pro-content-card">
-              <ProductManager 
-                products={filteredProducts} 
+              <ProductManager
+                products={filteredProducts}
                 onEdit={p => { setSelectedProduct(p); setShowProductModal(true); }}
                 onDelete={handleDeleteProduct}
-                language={language} 
+                language={language}
               />
             </div>
           </div>
@@ -516,12 +516,12 @@ export default function AdminDashboard() {
               </div>
             </div>
             <div className="pro-content-card">
-              <CategoryManager 
-                categories={filteredCategories} 
-                language={language} 
-                onAdd={() => { setSelectedItem(null); setShowCategoryModal(true); }} 
-                onEdit={c => { setSelectedItem(c); setShowCategoryModal(true); }} 
-                onDelete={handleDeleteCategory} 
+              <CategoryManager
+                categories={filteredCategories}
+                language={language}
+                onAdd={() => { setSelectedItem(null); setShowCategoryModal(true); }}
+                onEdit={c => { setSelectedItem(c); setShowCategoryModal(true); }}
+                onDelete={handleDeleteCategory}
               />
             </div>
           </div>
@@ -550,12 +550,12 @@ export default function AdminDashboard() {
               </div>
             </div>
             <div className="pro-content-card">
-              <ColorManager 
-                colors={filteredColors} 
-                language={language} 
+              <ColorManager
+                colors={filteredColors}
+                language={language}
                 onAdd={() => { setSelectedItem(null); setShowColorModal(true); }}
                 onEdit={c => { setSelectedItem(c); setShowColorModal(true); }}
-                onDelete={handleDeleteColor} 
+                onDelete={handleDeleteColor}
               />
             </div>
           </div>
@@ -591,7 +591,7 @@ export default function AdminDashboard() {
             <X size={20} color="white" />
           </button>
         </div>
-        
+
         <nav className="sidebar-nav">
           <button onClick={() => { setActiveTab('overview'); setIsSidebarOpen(false); }} className={`nav-item ${activeTab === 'overview' ? 'active' : ''}`}>
             <TrendingUp size={18} /> <span>{language === 'ar' ? 'نظرة عامة' : 'Overview'}</span>
@@ -659,10 +659,10 @@ export default function AdminDashboard() {
         <footer className="admin-footer">
           <div className="developer-credit-horizontal">
             <span>{language === 'ar' ? 'تطوير وبرمجة:' : 'Developed by:'}</span>
-            <a 
-              href="https://linkedin.com/in/ahmad-al-zein-4b9054386" 
-              target="_blank" 
-              rel="noopener noreferrer" 
+            <a
+              href="https://linkedin.com/in/ahmad-al-zein-4b9054386"
+              target="_blank"
+              rel="noopener noreferrer"
               className="dev-name clickable"
             >
               Ahmad Al Zein
@@ -675,10 +675,10 @@ export default function AdminDashboard() {
 
       {/* Modals */}
       {selectedOrder && (
-        <OrderIntelligenceModal 
-          order={selectedOrder} 
+        <OrderIntelligenceModal
+          order={selectedOrder}
           isOpen={!!selectedOrder}
-          onClose={() => setSelectedOrder(null)} 
+          onClose={() => setSelectedOrder(null)}
           onUpdateStatus={handleUpdateStatus}
           language={language}
           updatingId={updatingId}
@@ -687,7 +687,7 @@ export default function AdminDashboard() {
       )}
 
       {showProductModal && (
-        <ProductWizard 
+        <ProductWizard
           isOpen={showProductModal}
           product={selectedProduct}
           categories={categories}
@@ -699,7 +699,7 @@ export default function AdminDashboard() {
       )}
 
       {showCategoryModal && (
-        <CategoryModal 
+        <CategoryModal
           category={selectedItem}
           categories={categories}
           onClose={() => { setShowCategoryModal(false); setSelectedItem(null); }}
@@ -709,7 +709,7 @@ export default function AdminDashboard() {
       )}
 
       {showColorModal && (
-        <ColorModal 
+        <ColorModal
           color={selectedItem}
           onClose={() => { setShowColorModal(false); setSelectedItem(null); }}
           onSave={handleSaveColor}
@@ -719,7 +719,7 @@ export default function AdminDashboard() {
 
 
 
-      <AdminConfirmModal 
+      <AdminConfirmModal
         isOpen={confirmConfig.isOpen}
         title={confirmConfig.title}
         message={confirmConfig.message}
@@ -732,12 +732,13 @@ export default function AdminDashboard() {
 
       {/* Global Notifications & States */}
       <AdminToastStack toasts={toasts} onClose={(id) => setToasts(prev => prev.filter(t => t.id !== id))} />
-      
+
       {!isOnline && <OfflineBanner language={language} />}
-      
+
       {loading && <AdminProLoader language={language} />}
 
-      <style dangerouslySetInnerHTML={{ __html: `
+      <style dangerouslySetInnerHTML={{
+        __html: `
         :root {
           --admin-primary: #3b82f6;
           --admin-bg: #f8fafc;
