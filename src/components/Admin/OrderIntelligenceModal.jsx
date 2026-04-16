@@ -12,6 +12,7 @@ export const OrderIntelligenceModal = ({
 }) => {
   const isAR = language === 'ar';
   
+  const isUpdating = updatingId === order.id;
   if (!isOpen || !order) return null;
 
   // Defensive data extraction helper
@@ -40,8 +41,8 @@ export const OrderIntelligenceModal = ({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="intel-modal-overlay" 
-      onClick={onClose}
+      className={`intel-modal-overlay ${isUpdating ? 'intel-locked' : ''}`} 
+      onClick={isUpdating ? null : onClose}
     >
       <motion.div 
         initial={{ y: 50, opacity: 0, scale: 0.95 }}
@@ -59,8 +60,12 @@ export const OrderIntelligenceModal = ({
             </div>
             <h2 className="modal-title">{isAR ? 'تفاصيل ومعالجة الطلب' : 'Order Intelligence'}</h2>
           </div>
-          <button className="intel-close-btn" onClick={onClose}>
-            <X size={24} />
+          <button 
+            className="intel-close-btn" 
+            onClick={onClose}
+            disabled={isUpdating}
+          >
+            {isUpdating ? <Loader2 size={24} className="animate-spin" /> : <X size={24} />}
           </button>
         </div>
 
@@ -245,6 +250,11 @@ export const OrderIntelligenceModal = ({
             color: #64748b; cursor: pointer; transition: all 0.2s;
           }
           .intel-close-btn:hover { background: #e2e8f0; color: #0f172a; transform: rotate(90deg); }
+          .intel-close-btn:disabled { 
+            opacity: 0.5; cursor: wait; transform: none !important;
+            background: #f1f5f9; color: #94a3b8;
+          }
+          .intel-locked { cursor: wait; }
 
           /* Body */
           .intel-modal-body { padding: 32px; overflow-y: auto; flex: 1; }

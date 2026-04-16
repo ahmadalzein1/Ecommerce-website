@@ -213,28 +213,58 @@ export default function AdminDashboard() {
         const wasDeducted = deductedGroup.includes(oldStatus);
         const shouldBeDeducted = deductedGroup.includes(newStatus);
 
-        // 1. Handle Stock Adjustments
+        // 1. STRICT STOCK VALIDATION (Pre-flight)
         if (shouldBeDeducted && !wasDeducted) {
-          // Decrement stock when moving to active/paid
-          for (const item of order.order_items) {
-            await supabase.rpc('decrement_stock', { 
-              variant_id: item.product_variant_id, 
-              qty: item.quantity 
-            });
-          }
-        } else if (!shouldBeDeducted && wasDeducted) {
-          // Increment stock back when moving away from active/paid
-          for (const item of order.order_items) {
-            await supabase.rpc('increment_stock', { 
-              variant_id: item.product_variant_id, 
-              qty: item.quantity 
-            });
+          const variantIds = order.order_items.map(i => i.product_variant_id);
+          const { data: currentStock, error: stockQueryError } = await supabase
+            .from('product_variants')
+            .select('id, stock_quantity')
+            .in('id', variantIds);
+
+          if (stockQueryError) throw stockQueryError;
+
+          const shortages = [];
+          order.order_items.forEach(item => {
+            const liveVariant = currentStock.find(v => v.id === item.product_variant_id);
+            const available = liveVariant?.stock_quantity || 0;
+            if (available < item.quantity) {
+              const pName = language === 'ar' 
+                ? item.variant?.product?.name_ar 
+                : item.variant?.product?.name_en;
+              shortages.push(`${pName} (${language === 'ar' ? 'المتوفر' : 'Avail'}: ${available})`);
+            }
+          });
+
+          if (shortages.length > 0) {
+            const errorMsg = language === 'ar'
+              ? `عذراً، المخزون غير كافٍ للمنتجات التالية: ${shortages.join(', ')}`
+              : `Insufficient stock for: ${shortages.join(', ')}`;
+            throw new Error(errorMsg);
           }
         }
 
-        // 2. Update status
-        const { error } = await supabase.from('orders').update({ status: newStatus }).eq('id', order.id);
-        if (error) throw error;
+        // 2. Handle Stock Adjustments (If validation passed)
+        if (shouldBeDeducted && !wasDeducted) {
+          for (const item of order.order_items) {
+            const { error: rpcError } = await supabase.rpc('decrement_stock', { 
+              variant_id: item.product_variant_id, 
+              qty: item.quantity 
+            });
+            if (rpcError) throw rpcError;
+          }
+        } else if (!shouldBeDeducted && wasDeducted) {
+          for (const item of order.order_items) {
+            const { error: rpcError } = await supabase.rpc('increment_stock', { 
+              variant_id: item.product_variant_id, 
+              qty: item.quantity 
+            });
+            if (rpcError) throw rpcError;
+          }
+        }
+
+        // 3. Update status
+        const { error: statusError } = await supabase.from('orders').update({ status: newStatus }).eq('id', order.id);
+        if (statusError) throw statusError;
       };
 
       await errorService.withTimeout(updateLogic(), 15000);
@@ -243,6 +273,7 @@ export default function AdminDashboard() {
       if (selectedOrder?.id === order.id) {
         setSelectedOrder({ ...selectedOrder, status: newStatus });
       }
+      notify(language === 'ar' ? 'تم تحديث حالة الطلب' : 'Order status updated', 'success');
     } catch (err) {
       notify(errorService.translate(err, language), 'error');
     } finally {
