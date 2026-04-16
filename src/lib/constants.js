@@ -4,6 +4,7 @@ export const WHATSAPP_NUMBER = '96171848875';
 export const INSTAGRAM_URL = 'https://www.instagram.com/zeiin_shop';
 export const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL;
 export const DELIVERY_INFO = 'توصيل لجميع أنحاء لبنان';
+export const DELIVERY_FEE = 4; // Fixed delivery charge in USD
 
 // Currency
 export const PRIMARY_CURRENCY = 'USD';
@@ -59,8 +60,13 @@ export const generateOrderMessage = (items, customerName, customerPhone, address
   });
 
   msg += `─────────────────\n`;
-  msg += `*${isRTL ? 'الإجمالي الكلي' : 'Grand Total'}: ${formatPrice(total)}*\n`;
-  msg += `*${isRTL ? 'الإجمالي (بالليرة)' : 'Total (LBP)'}: ${formatPrice(total, 'LBP')}*\n\n`;
+  msg += `*${isRTL ? 'سعر المنتجات' : 'Products Total'}:* ${formatPrice(total)}\n`;
+  msg += `*${isRTL ? 'رسوم التوصيل' : 'Delivery Fee'}:* ${formatPrice(DELIVERY_FEE)}\n`;
+  
+  const grandTotal = total + DELIVERY_FEE;
+  
+  msg += `*${isRTL ? 'الإجمالي الكلي' : 'Grand Total'}: ${formatPrice(grandTotal)}*\n`;
+  msg += `*${isRTL ? 'الإجمالي (بالليرة)' : 'Total (LBP)'}: ${formatPrice(grandTotal, 'LBP')}*\n\n`;
   msg += `*${isRTL ? 'الدفع' : 'Payment'}:* ${isRTL ? 'الدفع عند الاستلام' : 'Cash on Delivery'}\n`;
   msg += `*${isRTL ? 'أقر بموافقتي على أن الطلب يستغرق 10-12 يوماً للتوصيل (شحن ممتاز).' : 'I acknowledge and agree that the order takes 10-12 days to deliver (Premium Shipping).'}\n`;
   msg += `\n${isRTL ? 'شكراً لتسوقكم من Zein Shop!' : 'Thank you for shopping at Zein Shop!'}`;
