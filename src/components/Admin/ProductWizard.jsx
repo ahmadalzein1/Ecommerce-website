@@ -368,9 +368,7 @@ export const ProductWizard = ({ isOpen, onClose, product, categories, colors, on
                             </div>
                           </td>
                           <td>
-                            <input type="text" disabled={loading} value={v.size} onChange={e => {
-                              const n = [...variants]; n[idx].size = e.target.value; setVariants(n);
-                            }} className="sm-matrix-input" />
+                            <span className="matrix-size-label">{v.size}</span>
                           </td>
                           <td>
                             <div className="stock-input-group">
@@ -491,21 +489,29 @@ export const ProductWizard = ({ isOpen, onClose, product, categories, colors, on
           .card-upload-area { height: 120px; background: white; border-radius: 12px; border: 2px dashed #e2e8f0; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; }
           .card-upload-area img { width: 100%; height: 100%; object-fit: cover; }
 
-          .matrix-scroll-wrapper { width: 100%; overflow-x: auto; background: white; border: 1px solid #f1f5f9; border-radius: 20px; }
-          .matrix-table { width: 100%; border-collapse: collapse; min-width: 600px; }
-          .matrix-table th { background: #f8fafc; padding: 14px; font-size: 0.75rem; text-transform: uppercase; color: #64748b; text-align: start; }
+          .matrix-scroll-wrapper { width: 100%; overflow-x: auto; background: white; border: 1px solid #f1f5f9; border-radius: 20px; -webkit-overflow-scrolling: touch; }
+          .matrix-table { width: 100%; border-collapse: collapse; min-width: 500px; table-layout: fixed; }
+          .matrix-table th { background: #f8fafc; padding: 12px 8px; font-size: 0.7rem; text-transform: uppercase; color: #64748b; text-align: start; }
           .matrix-table td { padding: 12px 14px; border-bottom: 1px solid #f8fafc; }
           .matrix-color { display: flex; align-items: center; gap: 8px; font-weight: 700; color: #0f172a; }
           .matrix-color .dot { width: 8px; height: 8px; border-radius: 50%; }
           .stock-input-group { display: flex; align-items: center; gap: 8px; }
           .stock-input-group .unit { font-size: 0.75rem; color: #94a3b8; font-weight: 500; min-width: 30px; }
-          .sm-matrix-input { width: 100%; padding: 8px 12px !important; font-size: 0.85rem !important; border-radius: 8px !important; }
+          .sm-matrix-input { width: 100%; padding: 10px 12px !important; font-size: 1rem !important; border-radius: 12px !important; border: 1.5px solid #e2e8f0 !important; background: white !important; transition: all 0.2s; }
+          .sm-matrix-input:focus { border-color: #3b82f6 !important; outline: none; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); }
+          .matrix-size-label { font-weight: 700; color: #64748b; font-size: 0.9rem; }
 
           @media (max-width: 640px) {
-            .form-grid { grid-template-columns: 1fr; gap: 16px; }
-            .mapping-cards-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
-            .mapping-card-item { padding: 10px; border-radius: 16px; }
-            .card-upload-area { height: 100px; }
+            .matrix-table { min-width: 100%; }
+            .matrix-table th, .matrix-table td { padding: 8px 4px; }
+            .matrix-table th:nth-child(1), .matrix-table td:nth-child(1) { width: 40%; }
+            .matrix-table th:nth-child(2), .matrix-table td:nth-child(2) { width: 25%; }
+            .matrix-table th:nth-child(3), .matrix-table td:nth-child(3) { width: 35%; }
+            
+            .stock-input-group { gap: 4px; }
+            .stock-input-group .unit { display: none; }
+            .sm-matrix-input { padding: 8px !important; text-align: center; }
+
             .section-title { font-size: 1rem; }
             .modal-actions { padding: 16px 20px !important; }
             .btn-primary, .btn-secondary { padding: 10px 16px !important; font-size: 0.85rem !important; }
